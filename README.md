@@ -1,8 +1,6 @@
 <div align="center">
 
-# HumanTracker
-
-**Towards Comprehensive and Human-Aligned Motion Tracking Benchmark**
+# HumanTracker: Towards Comprehensive and Human-Aligned Motion Tracking Benchmark
 
 Dairu Liu\* · Zekun Qi\* · Jiayu Zeng\* · Ruixi Yu · Yu Guan · Yintianrun Zhang · Xuchuan Chen
 Sikai Liang · Zekai Li · Chenghuai Lin · Xinqiang Yu · Wenyao Zhang · He Wang† · Li Yi†
