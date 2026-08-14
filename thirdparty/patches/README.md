@@ -12,13 +12,6 @@ patches; patches inside it apply in filename order.
 
 ## Humanoid-GPT
 
-**`0001-headless-video-export.patch`** — `scripts/vis.py` unconditionally opened a GLFW
-`launch_passive` viewer, which cannot be created on a headless machine. Video export
-now renders offscreen through EGL, and the interactive viewer is built only when no
-video path is given. Required by
-[`visualize_jerk_p95.py`](../../src/humantracker/data/visualize_jerk_p95.py), which
-drives `vis.py` on a GPU server to render the jerk figures.
-
 **`0002-standalone-script-imports.patch`** — `tracking/convert_qpos2kpt.py` uses
 package-relative imports, so importing it from outside the Humanoid-GPT tree fails.
 The patch prepends the checkout root to `sys.path` when the module is loaded outside a
