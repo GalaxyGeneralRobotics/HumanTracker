@@ -9,7 +9,7 @@ Nankai University · Tsinghua University · Galbot · Shanghai Jiao Tong Univers
 
 \*Equal contribution  †Corresponding author
 
-**Accepted to ECCV 2026**
+**ECCV 2026**
 
 <p align="center">
   <a href="https://dairuliu.github.io/humantracker/"><img src="https://img.shields.io/badge/%F0%9F%8C%90%20Project-Page-blue.svg" alt="Project Page"></a>
