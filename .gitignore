@@ -1,0 +1,87 @@
+# Deny everything, then whitelist what ships. This repository sits next to
+# hundreds of gigabytes of datasets, render caches and vendored third-party
+# checkouts, so an allow-by-default ignore file is not safe here.
+*
+
+# --- Root files -------------------------------------------------------------
+!.gitignore
+!.env.example
+!.python-version
+!README.md
+!LICENSE
+!CITATION.cff
+!pyproject.toml
+!uv.lock
+
+# --- Source trees -----------------------------------------------------------
+!src/
+!src/**
+!tool/
+!tool/**
+!tests/
+!tests/**
+
+# --- Assets the harness opens ------------------------------------------------
+# storage/ is otherwise generated data. Only the G1 description the evaluation
+# actually loads ships, with Unitree's own LICENSE alongside it, plus the teaser.
+!storage/
+storage/*
+!storage/assets/
+storage/assets/*
+!storage/assets/teaser.png
+!storage/assets/unitree_g1_5010/
+!storage/assets/unitree_g1_5010/**
+
+# --- Headless rendering ------------------------------------------------------
+# MuJoCo's EGL backend needs an ICD vendor file, and eval_parallel_tracker.py points
+# __EGL_VENDOR_LIBRARY_DIRS at this directory: without it mujoco cannot open a headless
+# display on a driver whose system-wide ICD is missing.
+!egl_conf/
+!egl_conf/*.json
+
+# --- Third-party upstreams ---------------------------------------------------
+# setup_thirdparty.sh clones each of the four trackers at its pinned commit and
+# applies our patches from thirdparty/patches/. The checkouts are local build
+# products, never tracked.
+!setup_thirdparty.sh
+!thirdparty/
+thirdparty/*
+!thirdparty/patches/
+!thirdparty/patches/**
+
+# --- Never track, even inside whitelisted trees -----------------------------
+# Python build and interpreter droppings
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+.python-version.local
+
+# Editor, OS and merge-tool droppings
+.DS_Store
+._*
+*.orig
+*.rej
+*.bak
+*.before_*
+.codex_backup/
+
+# Model weights: never tracked, even inside a whitelisted tree such as storage/
+*.pt
+*.pth
+*.ckpt
+*.onnx
+
+# Local secrets and runtime state
+.env
+*.log
+.gradio/
+.public_tunnel/
+*.lock
+!uv.lock
+
+# Generated data: rollouts, renders, annotations, logs
+.cache/
+.video_cache*/
+tool/play_logs/
+tool/motion_annotation/data/

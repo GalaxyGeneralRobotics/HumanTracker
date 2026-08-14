@@ -1,0 +1,175 @@
+<mujoco model="debug_axis">
+
+    <!-- ─────────────  RE-USABLE ASSETS  ───────────── -->
+    <asset>
+        <!-- body colours -->
+        <material name="frame_red" rgba="1   0   0   0.7"/>
+        <material name="frame_orange" rgba="1   0.5 0   0.7"/>
+        <material name="frame_yellow" rgba="1   1   0   0.7"/>
+        <material name="frame_green" rgba="0   1   0   0.7"/>
+        <material name="frame_blue" rgba="0   0   1   0.7"/>
+        <material name="frame_indigo" rgba="0.3 0   0.5 0.7"/>
+        <material name="frame_violet" rgba="0.6 0   1   0.7"/>
+        <material name="frame_pink" rgba="1.0 0.4 0.7 0.7"/>
+        <material name="frame_cyan" rgba="0.0 1.0 1.0 0.7"/>
+        <material name="frame_lime" rgba="0.5 1.0 0.0 0.7"/>
+        <material name="frame_gold" rgba="1.0 0.84 0.0 0.7"/>
+        <material name="frame_magenta" rgba="1.0 0.0 1.0 0.7"/>
+        <material name="frame_brown" rgba="0.6 0.3 0.0 0.7"/>
+        <material name="frame_white" rgba="1.0 1.0 1.0 0.7"/>
+        <material name="frame_gray" rgba="0.5 0.5 0.5 0.7"/>
+        <material name="frame_black" rgba="0.0 0.0 0.0 0.7"/>
+        <material name="frame_teal" rgba="0.0 0.5 0.5 0.7"/>
+        <material name="frame_maroon" rgba="0.5 0.0 0.0 0.7"/>
+
+        <!-- axis cylinders (faded) -->
+        <material name="axis_x" rgba="1 0 0 0.2"/>
+        <material name="axis_y" rgba="0 1 0 0.2"/>
+        <material name="axis_z" rgba="0 0 1 0.2"/>
+
+    </asset>
+
+    <!-- ─────────────  COMMON GEOM SETTINGS  ───────────── -->
+    <default>
+        <default class="origin">
+            <geom type="sphere" size="0.02"/>
+        </default>
+        <default class="axis">
+            <geom type="cylinder" size="0.005"/>
+        </default>
+        <default class="end">
+            <geom type="sphere" size="0.01"/>
+        </default>
+    </default>
+
+    <!-- ─────────────  WORLD  ───────────── -->
+    <worldbody>
+
+        <!-- helper: one body per colour / frame -->
+        <body name="debug_axis_0" pos="0.0 0 -0.2" mocap="true">
+            <geom class="origin" material="frame_red"/>
+            <geom class="axis" material="axis_x" fromto="0 0 0 0.1 0 0"/>
+            <geom class="end" material="frame_red" pos="0.1 0 0"/>
+            <geom class="axis" material="axis_y" fromto="0 0 0 0 0.1 0"/>
+            <geom class="end" material="frame_red" pos="0 0.1 0"/>
+            <geom class="axis" material="axis_z" fromto="0 0 0 0 0 0.1"/>
+            <geom class="end" material="frame_red" pos="0 0 0.1"/>
+        </body>
+
+        <body name="debug_axis_1" pos="0.2 0 -0.2" mocap="true">
+            <geom class="origin" material="frame_orange"/>
+            <geom class="axis" material="axis_x" fromto="0 0 0 0.1 0 0"/>
+            <geom class="end" material="frame_orange" pos="0.1 0 0"/>
+            <geom class="axis" material="axis_y" fromto="0 0 0 0 0.1 0"/>
+            <geom class="end" material="frame_orange" pos="0 0.1 0"/>
+            <geom class="axis" material="axis_z" fromto="0 0 0 0 0 0.1"/>
+            <geom class="end" material="frame_orange" pos="0 0 0.1"/>
+        </body>
+
+        <body name="debug_axis_2" pos="0.4 0 -0.2" mocap="true">
+            <geom class="origin" material="frame_yellow"/>
+            <geom class="axis" material="axis_x" fromto="0 0 0 0.1 0 0"/>
+            <geom class="end" material="frame_yellow" pos="0.1 0 0"/>
+            <geom class="axis" material="axis_y" fromto="0 0 0 0 0.1 0"/>
+            <geom class="end" material="frame_yellow" pos="0 0.1 0"/>
+            <geom class="axis" material="axis_z" fromto="0 0 0 0 0 0.1"/>
+            <geom class="end" material="frame_yellow" pos="0 0 0.1"/>
+        </body>
+
+        <body name="debug_axis_3" pos="0.6 0 -0.2" mocap="true">
+            <geom class="origin" material="frame_green"/>
+            <geom class="axis" material="axis_x" fromto="0 0 0 0.1 0 0"/>
+            <geom class="end" material="frame_green" pos="0.1 0 0"/>
+            <geom class="axis" material="axis_y" fromto="0 0 0 0 0.1 0"/>
+            <geom class="end" material="frame_green" pos="0 0.1 0"/>
+            <geom class="axis" material="axis_z" fromto="0 0 0 0 0 0.1"/>
+            <geom class="end" material="frame_green" pos="0 0 0.1"/>
+        </body>
+
+        <body name="debug_axis_4" pos="0.8 0 -0.2" mocap="true">
+            <geom class="origin" material="frame_blue"/>
+            <geom class="axis" material="axis_x" fromto="0 0 0 0.1 0 0"/>
+            <geom class="end" material="frame_blue" pos="0.1 0 0"/>
+            <geom class="axis" material="axis_y" fromto="0 0 0 0 0.1 0"/>
+            <geom class="end" material="frame_blue" pos="0 0.1 0"/>
+            <geom class="axis" material="axis_z" fromto="0 0 0 0 0 0.1"/>
+            <geom class="end" material="frame_blue" pos="0 0 0.1"/>
+        </body>
+
+        <body name="debug_axis_5" pos="1.0 0 -0.2" mocap="true">
+            <geom class="origin" material="frame_indigo"/>
+            <geom class="axis" material="axis_x" fromto="0 0 0 0.1 0 0"/>
+            <geom class="end" material="frame_indigo" pos="0.1 0 0"/>
+            <geom class="axis" material="axis_y" fromto="0 0 0 0 0.1 0"/>
+            <geom class="end" material="frame_indigo" pos="0 0.1 0"/>
+            <geom class="axis" material="axis_z" fromto="0 0 0 0 0 0.1"/>
+            <geom class="end" material="frame_indigo" pos="0 0 0.1"/>
+        </body>
+
+        <body name="debug_axis_6" pos="1.2 0 -0.2" mocap="true">
+            <geom class="origin" material="frame_violet"/>
+            <geom class="axis" material="axis_x" fromto="0 0 0 0.1 0 0"/>
+            <geom class="end" material="frame_violet" pos="0.1 0 0"/>
+            <geom class="axis" material="axis_y" fromto="0 0 0 0 0.1 0"/>
+            <geom class="end" material="frame_violet" pos="0 0.1 0"/>
+            <geom class="axis" material="axis_z" fromto="0 0 0 0 0 0.1"/>
+            <geom class="end" material="frame_violet" pos="0 0 0.1"/>
+        </body>
+
+        <body name="debug_sphere_0" pos="0.0 -0.3 -0.2" mocap="true">
+            <geom type="sphere" size="0.02" material="frame_red"/>
+        </body>
+        <body name="debug_sphere_1" pos="0.2 -0.3 -0.2" mocap="true">
+            <geom type="sphere" size="0.02" material="frame_orange"/>
+        </body>
+        <body name="debug_sphere_2" pos="0.4 -0.3 -0.2" mocap="true">
+            <geom type="sphere" size="0.02" material="frame_yellow"/>
+        </body>
+        <body name="debug_sphere_3" pos="0.6 -0.3 -0.2" mocap="true">
+            <geom type="sphere" size="0.02" material="frame_green"/>
+        </body>
+        <body name="debug_sphere_4" pos="0.8 -0.3 -0.2" mocap="true">
+            <geom type="sphere" size="0.02" material="frame_blue"/>
+        </body>
+        <body name="debug_sphere_5" pos="1.0 -0.3 -0.2" mocap="true">
+            <geom type="sphere" size="0.02" material="frame_indigo"/>
+        </body>
+        <body name="debug_sphere_6" pos="1.2 -0.3 -0.2" mocap="true">
+            <geom type="sphere" size="0.02" material="frame_violet"/>
+        </body>
+        <body name="debug_sphere_7" pos="1.4 -0.3 -0.2" mocap="true">
+            <geom type="sphere" size="0.02" material="frame_pink"/>
+        </body>
+        <body name="debug_sphere_8" pos="1.6 -0.3 -0.2" mocap="true">
+            <geom type="sphere" size="0.02" material="frame_cyan"/>
+        </body>
+        <body name="debug_sphere_9" pos="1.8 -0.3 -0.2" mocap="true">
+            <geom type="sphere" size="0.02" material="frame_lime"/>
+        </body>
+        <body name="debug_sphere_10" pos="2.0 -0.3 -0.2" mocap="true">
+            <geom type="sphere" size="0.02" material="frame_gold"/>
+        </body>
+        <body name="debug_sphere_11" pos="2.2 -0.3 -0.2" mocap="true">
+            <geom type="sphere" size="0.02" material="frame_magenta"/>
+        </body>
+        <body name="debug_sphere_12" pos="2.4 -0.3 -0.2" mocap="true">
+            <geom type="sphere" size="0.02" material="frame_brown"/>
+        </body>
+        <body name="debug_sphere_13" pos="2.6 -0.3 -0.2" mocap="true">
+            <geom type="sphere" size="0.02" material="frame_white"/>
+        </body>
+        <body name="debug_sphere_14" pos="2.8 -0.3 -0.2" mocap="true">
+            <geom type="sphere" size="0.02" material="frame_gray"/>
+        </body>
+        <body name="debug_sphere_15" pos="3.0 -0.3 -0.2" mocap="true">
+            <geom type="sphere" size="0.02" material="frame_black"/>
+        </body>
+        <body name="debug_sphere_16" pos="3.2 -0.3 -0.2" mocap="true">
+            <geom type="sphere" size="0.02" material="frame_teal"/>
+        </body>
+        <body name="debug_sphere_17" pos="3.4 -0.3 -0.2" mocap="true">
+            <geom type="sphere" size="0.02" material="frame_maroon"/>
+        </body>
+
+    </worldbody>
+</mujoco>

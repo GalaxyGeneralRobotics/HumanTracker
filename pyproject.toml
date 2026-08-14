@@ -1,0 +1,41 @@
+[build-system]
+requires = ["setuptools>=75.8.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "humantracker"
+version = "0.1.0"
+description = "HumanTracker: Towards Comprehensive and Human-Aligned Motion Tracking Benchmark"
+readme = "README.md"
+license = { text = "Apache-2.0" }
+requires-python = ">=3.11,<3.13"
+dependencies = [
+    "numpy>=2.1",
+    "scipy>=1.13",
+    "torch>=2.8",
+    "transformers>=4.57",
+    "pyarrow>=18.0",
+    "opencv-python>=4.11",
+    "mujoco>=3.3.7",
+    "onnxruntime>=1.20,<1.24",
+    "jax>=0.8",
+    "tqdm>=4.67",
+    "wandb>=0.24",
+]
+
+[project.optional-dependencies]
+annotation = [
+    "fastapi>=0.128",
+    "uvicorn>=0.40",
+    "gradio>=6.11",
+    "imageio-ffmpeg>=0.5",
+]
+
+[project.urls]
+Homepage = "https://dairuliu.github.io/humantracker/"
+Repository = "https://github.com/GalaxyGeneralRobotics/HumanTracker"
+Paper = "https://arxiv.org/abs/2608.13555"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["humantracker*"]

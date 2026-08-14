@@ -1,0 +1,18 @@
+# Python 虚拟环境
+.venv/
+.idea/
+*.pyc
+
+# 模型文件
+*.pt
+*.onnx
+.env
+
+# 日志目录
+*.csv
+.idea
+/data/
+
+# 预渲染 MP4 缓存（web_labeler --cache-dir）
+.video_cache/
+**/.cache/

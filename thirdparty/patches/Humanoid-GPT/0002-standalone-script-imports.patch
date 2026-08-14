@@ -1,0 +1,28 @@
+diff --git a/tracking/convert_qpos2kpt.py b/tracking/convert_qpos2kpt.py
+index ccef35f..114d5ea 100644
+--- a/tracking/convert_qpos2kpt.py
++++ b/tracking/convert_qpos2kpt.py
+@@ -1,4 +1,5 @@
+ import tyro
++import sys
+ import pickle
+ import logging
+ import numpy as np
+@@ -7,6 +8,9 @@ from typing import Literal
+ from dataclasses import dataclass
+ from collections.abc import Iterable
+ 
++if __package__ in {None, ""}:
++    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
++
+ import mujoco
+ import mujoco.viewer
+ from mujoco import Renderer
+@@ -172,7 +176,6 @@ def lp_filter(
+     qpos_f[:, 3:7] = quat_f
+     return qpos_f
+ 
+-
+ def contact_estimate(kpt_npose, gv_vel, lin_thresh=0.03, ang_thresh=0.1, freq=50):
+     left_ankle_id = KPT_NAMES.index("left_ankle_roll_link")
+     right_ankle_id = KPT_NAMES.index("right_ankle_roll_link")

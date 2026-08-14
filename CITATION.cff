@@ -1,0 +1,106 @@
+cff-version: 1.2.0
+message: "If you use HumanTracker, please cite it as below."
+title: "HumanTracker: Towards Comprehensive and Human-Aligned Motion Tracking Benchmark"
+abstract: >-
+  HumanTracker is a humanoid motion tracking benchmark contributing approximately 153
+  hours of newly captured optical motion from 24 professional performers across four
+  motion families, together with HumanScore, a preference-aligned metric trained on
+  12K human-labeled preference pairs spanning 24K synchronized tracker trajectories via
+  a trajectory reward model. Accepted to ECCV 2026.
+type: software
+license: Apache-2.0
+url: "https://dairuliu.github.io/humantracker/"
+repository-code: "https://github.com/GalaxyGeneralRobotics/HumanTracker"
+preferred-citation:
+  type: article
+  title: "HumanTracker: Towards Comprehensive and Human-Aligned Motion Tracking Benchmark"
+  year: 2026
+  journal: "arXiv preprint arXiv:2608.13555"
+  url: "https://arxiv.org/abs/2608.13555"
+  authors:
+    - family-names: Liu
+      given-names: Dairu
+      affiliation: "Nankai University; Galbot"
+    - family-names: Qi
+      given-names: Zekun
+      affiliation: "Tsinghua University; Galbot"
+    - family-names: Zeng
+      given-names: Jiayu
+      affiliation: Galbot
+    - family-names: Yu
+      given-names: Ruixi
+      affiliation: "Tsinghua University; Galbot"
+    - family-names: Guan
+      given-names: Yu
+      affiliation: "Tsinghua University; Galbot"
+    - family-names: Zhang
+      given-names: Yintianrun
+      affiliation: Galbot
+    - family-names: Chen
+      given-names: Xuchuan
+      affiliation: "Tsinghua University; Galbot"
+    - family-names: Liang
+      given-names: Sikai
+      affiliation: "Galbot; Shanghai Jiao Tong University"
+    - family-names: Li
+      given-names: Zekai
+      affiliation: "Tsinghua University; Galbot"
+    - family-names: Lin
+      given-names: Chenghuai
+      affiliation: Galbot
+    - family-names: Yu
+      given-names: Xinqiang
+      affiliation: Galbot
+    - family-names: Zhang
+      given-names: Wenyao
+      affiliation: "Galbot; Shanghai Jiao Tong University"
+    - family-names: Wang
+      given-names: He
+      affiliation: "Galbot; Peking University"
+    - family-names: Yi
+      given-names: Li
+      affiliation: "Tsinghua University; Galbot; Shanghai Qi Zhi Institute"
+year: 2026
+authors:
+  - family-names: Liu
+    given-names: Dairu
+    affiliation: "Nankai University; Galbot"
+  - family-names: Qi
+    given-names: Zekun
+    affiliation: "Tsinghua University; Galbot"
+  - family-names: Zeng
+    given-names: Jiayu
+    affiliation: Galbot
+  - family-names: Yu
+    given-names: Ruixi
+    affiliation: "Tsinghua University; Galbot"
+  - family-names: Guan
+    given-names: Yu
+    affiliation: "Tsinghua University; Galbot"
+  - family-names: Zhang
+    given-names: Yintianrun
+    affiliation: Galbot
+  - family-names: Chen
+    given-names: Xuchuan
+    affiliation: "Tsinghua University; Galbot"
+  - family-names: Liang
+    given-names: Sikai
+    affiliation: "Galbot; Shanghai Jiao Tong University"
+  - family-names: Li
+    given-names: Zekai
+    affiliation: "Tsinghua University; Galbot"
+  - family-names: Lin
+    given-names: Chenghuai
+    affiliation: Galbot
+  - family-names: Yu
+    given-names: Xinqiang
+    affiliation: Galbot
+  - family-names: Zhang
+    given-names: Wenyao
+    affiliation: "Galbot; Shanghai Jiao Tong University"
+  - family-names: Wang
+    given-names: He
+    affiliation: "Galbot; Peking University"
+  - family-names: Yi
+    given-names: Li
+    affiliation: "Tsinghua University; Galbot; Shanghai Qi Zhi Institute"
