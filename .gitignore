@@ -11,7 +11,9 @@
 !LICENSE
 !CITATION.cff
 !pyproject.toml
-!uv.lock
+# !uv.lock
+uv.lock
+/egf_conf
 
 # --- Source trees -----------------------------------------------------------
 !src/
