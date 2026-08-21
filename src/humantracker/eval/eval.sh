@@ -26,7 +26,7 @@ robot_xml=$repo/storage/assets/unitree_g1_5010/g1_mjx_track_papergray.xml
 sonic_encoder=$repo/thirdparty/GR00T-WholeBodyControl/gear_sonic_deploy/policy/release/model_encoder.onnx
 sonic_decoder=$repo/thirdparty/GR00T-WholeBodyControl/gear_sonic_deploy/policy/release/model_decoder.onnx
 twist2_policy=$repo/thirdparty/TWIST2/assets/ckpts/twist2_1017_25k.onnx
-hgpt_policy=$repo/thirdparty/Humanoid-GPT/storage/ckpts/pns_wo_priv216.onnx
+hgpt_policy=$repo/thirdparty/Humanoid-GPT/storage/ckpts/pns_wo_priv264.onnx
 gmt_policy=$repo/thirdparty/humanoid-general-motion-tracking/assets/pretrained_checkpoints/pretrained.pt
 
 command -v "$python" >/dev/null

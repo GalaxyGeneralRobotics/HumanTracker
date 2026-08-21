@@ -126,9 +126,9 @@ SONIC publishes its ONNX policy on Hugging Face rather than in the repository:
 cd thirdparty/GR00T-WholeBodyControl && python download_from_hf.py
 ```
 
-The Humanoid-GPT policy evaluated here (`pns_wo_priv216.onnx`) is not part of the
+The Humanoid-GPT policy evaluated here (`pns_wo_priv264.onnx`) is not part of the
 upstream repository. Place it at
-`thirdparty/Humanoid-GPT/storage/ckpts/pns_wo_priv216.onnx`, or point `--policy` at
+`thirdparty/Humanoid-GPT/storage/ckpts/pns_wo_priv264.onnx`, or point `--policy` at
 your own checkpoint.
 
 ## Evaluating a tracker

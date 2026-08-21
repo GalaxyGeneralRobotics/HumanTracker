@@ -77,7 +77,7 @@ class EvalHGPTArgs(Args):
     defined in ``eval_parallel_tracker`` and not restated here.
     """
 
-    load_path: str = "thirdparty/Humanoid-GPT/storage/ckpts/pns_wo_priv216.onnx"
+    load_path: str = "thirdparty/Humanoid-GPT/storage/ckpts/pns_wo_priv264.onnx"
     device: str = "auto"
     privileged: bool = False
     sim_xml_path: str = "storage/assets/unitree_g1_5010/scene_mjx_track_papergray.xml"
@@ -432,7 +432,7 @@ def print_overall_summary(metrics: List[Dict]) -> None:
 
 OPTIONS = (
     ("--policy", {
-        "default": "thirdparty/Humanoid-GPT/storage/ckpts/pns_wo_priv216.onnx",
+        "default": "thirdparty/Humanoid-GPT/storage/ckpts/pns_wo_priv264.onnx",
         "help": "Humanoid-GPT policy ONNX",
     }),
     ("--robot_xml", {
