@@ -277,6 +277,29 @@ class SonicObsBuilder:
                 f"encoder dim {obs.shape[0]} != {self.encoder_dim}"
             )
             return obs[np.newaxis]
+        if self.encoder_dim == 1751:
+            # SONIC v1.1 drops both root-z terms, normalizes the anchor orientation by
+            # the robot heading instead of its full orientation, and lists the
+            # multi-future anchor block before the single-frame one.
+            parts.append(np.zeros(4))                        # encoder_mode_4, g1 mode_id=0
+            parts.append(self.ref_jpos_isab[fidx].ravel())   # 290
+            parts.append(self.ref_jvel_isab[fidx].ravel())   # 290
+            parts.append(np.concatenate(
+                [self._anchor_ori(f, base_quat_wxyz, heading=True) for f in fidx]
+            ))                                                 # 60
+            parts.append(np.zeros(6))     # anchor ori, teleop mode only
+            parts.append(np.zeros(120))   # lowerbody jpos
+            parts.append(np.zeros(120))   # lowerbody jvel
+            parts.append(np.zeros(9))     # vr_3point target
+            parts.append(np.zeros(12))    # vr_3point orn
+            parts.append(np.zeros(720))   # smpl_joints
+            parts.append(np.zeros(60))    # smpl_anchor_ori
+            parts.append(np.zeros(60))    # wrist jpos
+            obs = np.concatenate(parts).astype(np.float32)
+            assert obs.shape[0] == self.encoder_dim, (
+                f"encoder dim {obs.shape[0]} != {self.encoder_dim}"
+            )
+            return obs[np.newaxis]
         if self.encoder_dim != 1762:
             raise ValueError(f"Unsupported SONIC encoder input dim: {self.encoder_dim}")
 
@@ -349,11 +372,18 @@ class SonicObsBuilder:
         frames = np.arange(n) * step + cur
         return np.clip(frames, 0, self.traj_len - 1)
 
-    def _anchor_ori(self, frame: int, base_quat: np.ndarray) -> np.ndarray:
-        """6-D anchor orientation: first 2 columns of rot-matrix, row-major."""
+    def _anchor_ori(
+        self, frame: int, base_quat: np.ndarray, heading: bool = False
+    ) -> np.ndarray:
+        """6-D anchor orientation: first 2 columns of rot-matrix, row-major.
+
+        ``heading`` normalizes by the robot yaw only instead of its full orientation,
+        which keeps the reference pitch/roll relative to gravity.
+        """
         ref_q = self.ref_root_quat[frame]
         new_ref = quat_mul(self.apply_delta, ref_q)
-        base_to_ref = quat_mul(quat_conj(base_quat), new_ref)
+        frame_q = _calc_heading_quat(base_quat) if heading else base_quat
+        base_to_ref = quat_mul(quat_conj(frame_q), new_ref)
         mat = _quat_to_rotmat(base_to_ref)          # (3,3)
         return mat[:, :2].ravel()                     # (6,)
 
@@ -717,11 +747,11 @@ def evaluate_single_trajectory(
 
 OPTIONS = (
     ("--encoder", {
-        "default": "thirdparty/GR00T-WholeBodyControl/gear_sonic_deploy/policy/release/model_encoder.onnx",
+        "default": "thirdparty/GR00T-WholeBodyControl/gear_sonic_deploy/policy/v1_1/model_encoder.onnx",
         "help": "GEAR-SONIC encoder ONNX",
     }),
     ("--decoder", {
-        "default": "thirdparty/GR00T-WholeBodyControl/gear_sonic_deploy/policy/release/model_decoder.onnx",
+        "default": "thirdparty/GR00T-WholeBodyControl/gear_sonic_deploy/policy/v1_1/model_decoder.onnx",
         "help": "GEAR-SONIC decoder ONNX",
     }),
 )

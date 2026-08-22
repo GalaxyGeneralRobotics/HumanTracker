@@ -68,15 +68,17 @@ test partitions with the family distribution preserved.
 ### Zero-shot results
 
 Succ (%) ↑, MPJPE (rad) ↓, HumanScore ↑ on a 0–100 scale, computed on the test split.
-Numbers match Table 2 of the paper.
+Numbers match Table 2 of the paper, except SONIC 1.1, which NVIDIA released after the
+paper and which is measured here under the same protocol.
 
 | | Daily | | | Highly Dynamic | | | Interaction | | | Ground | | |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | **Method** | Succ | MPJPE | HScore | Succ | MPJPE | HScore | Succ | MPJPE | HScore | Succ | MPJPE | HScore |
 | GMT | 17.0 | 0.250 | 2.4 | 36.2 | 0.196 | 7.0 | 81.4 | 0.205 | 11.7 | 0.0 | 0.456 | 4.0 |
 | TWIST2 | 60.1 | 0.105 | 10.1 | 39.9 | 0.112 | 16.9 | 91.3 | 0.111 | 28.3 | 0.0 | 0.341 | 4.5 |
-| SONIC | 93.8 | 0.102 | 49.5 | 82.1 | 0.118 | 41.0 | **97.6** | 0.128 | 54.6 | 20.1 | 0.231 | **26.5** |
-| Humanoid-GPT | **94.4** | **0.046** | **54.7** | **86.9** | **0.047** | **49.2** | 97.2 | **0.070** | **56.8** | **32.9** | **0.216** | 24.9 |
+| SONIC | 93.8 | 0.102 | 49.5 | 82.1 | 0.118 | 41.0 | 97.6 | 0.128 | 54.6 | 20.1 | 0.231 | 26.5 |
+| SONIC 1.1 | **94.4** | 0.093 | 43.6 | 84.7 | 0.108 | 38.5 | **97.9** | 0.111 | 48.9 | 13.4 | **0.198** | **33.9** |
+| Humanoid-GPT | **94.4** | **0.046** | **54.7** | **86.9** | **0.047** | **49.2** | 97.2 | **0.070** | **56.8** | **32.9** | 0.216 | 24.9 |
 
 Every tracker keeps its native observation and action-processing stack, receives the
 same retargeted references, and is measured by the same evaluator under the SONIC
@@ -125,6 +127,19 @@ SONIC publishes its ONNX policy on Hugging Face rather than in the repository:
 ```bash
 cd thirdparty/GR00T-WholeBodyControl && python download_from_hf.py
 ```
+
+`--tracker sonic` defaults to SONIC 1.1, which the same repository ships under
+`sonic_v1_1/` and the downloader above does not cover:
+
+```bash
+cd thirdparty/GR00T-WholeBodyControl/gear_sonic_deploy/policy
+hf download nvidia/GEAR-SONIC --include 'sonic_v1_1/*' --local-dir .
+mv sonic_v1_1 v1_1
+```
+
+Both releases run through the same backend, which selects the observation layout from
+the encoder input dimension. Point `--encoder` and `--decoder` at
+`policy/release/` to reproduce the SONIC row of the table above.
 
 The Humanoid-GPT policy evaluated here (`pns_wo_priv264.onnx`) is not part of the
 upstream repository. Place it at
