@@ -43,6 +43,11 @@ reveals contact and stability failures that kinematic metrics often miss.
 This repository holds the evaluation harness, the HumanScore reward model, and the
 data tools used to build the preference dataset.
 
+## News
+
+- **2026-08-22** — Evaluated SONIC 1.1.
+- **2026-06-19** — Accepted to ECCV 2026.
+
 ## The benchmark
 
 Motions are grouped into four families by the failure regime they expose. All results
