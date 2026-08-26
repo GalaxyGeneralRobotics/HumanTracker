@@ -118,7 +118,7 @@ through `git-lfs`, so install that first.
 | upstream | `--tracker` | pinned | policy weights |
 | --- | --- | --- | --- |
 | [GR00T-WholeBodyControl](https://github.com/NVlabs/GR00T-WholeBodyControl) | `sonic` | `c3562ef` | Hugging Face (below) |
-| [Humanoid-GPT](https://github.com/GalaxyGeneralRobotics/Humanoid-GPT) | `hgpt` | `457a040` | supplied separately (below) |
+| [Humanoid-GPT](https://github.com/GalaxyGeneralRobotics/Humanoid-GPT) | `hgpt` | [`9f9e7b7`](https://github.com/GalaxyGeneralRobotics/Humanoid-GPT/commit/9f9e7b74ecadb532abbb34b6a779d87191a9bbb6) | ships with the checkout |
 | [TWIST2](https://github.com/amazon-far/TWIST2) | `twist2` | `d5c7108` | ships with the checkout |
 | [humanoid-general-motion-tracking](https://github.com/zixuan417/humanoid-general-motion-tracking) | `gmt` | `2a590de` | ships with the checkout |
 
@@ -141,10 +141,8 @@ Both releases run through the same backend, which selects the observation layout
 the encoder input dimension. Point `--encoder` and `--decoder` at
 `policy/release/` to reproduce the SONIC row of the table above.
 
-The Humanoid-GPT policy evaluated here (`pns_wo_priv264.onnx`) is not part of the
-upstream repository. Place it at
-`thirdparty/Humanoid-GPT/storage/ckpts/pns_wo_priv264.onnx`, or point `--policy` at
-your own checkpoint.
+The Humanoid-GPT policy evaluated here is `storage/ckpts/pns_wo_priv264.onnx` in the
+pinned checkout. `--policy` selects another checkpoint.
 
 ## Evaluating a tracker
 
@@ -259,12 +257,45 @@ targets a 0.5 win probability. Both are implemented as one soft-target Bradley�
 objective in
 [`SoftTargetBradleyTerryLoss`](src/humantracker/reward_model/models/loss.py).
 
+**Data.** `preference_pair/` in the dataset release is the training input. Every row
+carries one human label together with the two tracker rollouts it compares, so nothing
+has to be re-simulated:
+
 ```bash
+hf download GalaxyGeneralRobotics/HumanTracker --repo-type dataset \
+    --include 'preference_pair/*' --local-dir storage/dataset/HumanTracker
+
 python -m humantracker.reward_model.train.trainer \
-    --data_dir /path/to/preference_pairs \
-    --cache_dir /path/to/feature_cache \
+    --data_dir storage/dataset/HumanTracker/preference_pair \
+    --cache_dir storage/dataset/reward_model/cache \
     --output_dir storage/checkpoints/reward_model
 ```
+
+The download is 10 GB. The first run decodes the rollouts into `--cache_dir` as `float32`
+memmaps, another 13 GB, and prints the split it produced — 8,296 train, 922 validation,
+2,296 test samples, counting the bilateral-flip copy of each pair. Subsequent runs
+revalidate that cache instead of rebuilding it.
+
+`preference_pair/` is `<split>/<split>-NNNNN-of-NNNNN.parquet` beside `train.json` and
+`test.json`. One row is one comparison:
+
+| Column | Meaning |
+| --- | --- |
+| `record_id`, `pair_id` | pair identity |
+| `motion_id`, `category` | source motion and its family |
+| `tracker_pair_key`, `candidate_0_tracker`, `candidate_1_tracker` | which trackers, and in which candidate slot |
+| `choice_type` | `preference`, `similar`, or `bad_traj` |
+| `preferred_candidate_idx` | `0` or `1` for `preference`, else null |
+| `source_start_frame`, `source_end_frame`, `num_frames`, `fps` | labeled window |
+| `candidate_0_npz`, `candidate_1_npz` | the two tracker rollouts, one NPZ per candidate |
+| `motion_npz` | retargeted source clip for the window |
+| `annotation_json` | the full record the columns above summarize |
+
+The two candidate NPZs hold the frame-aligned arrays the 539-d token is cut from, named
+after the blocks in [`features.py`](src/humantracker/reward_model/features.py).
+`bad_traj` pairs are dropped, which is why 6,000 labels become 5,757 trained pairs.
+`train.json` names the validation records outright rather than resampling them, so epoch
+selection matches the released checkpoint.
 
 Each run writes `<output_dir>/<run_name>/{best,last}.pt`; promote the run you want to
 serve to `storage/checkpoints/reward_model/best.pt`, the path
@@ -279,7 +310,7 @@ held-out, motion-disjoint test cohort with
 ```bash
 python -m humantracker.reward_model.train.evaluate_checkpoint \
     --checkpoint storage/checkpoints/reward_model/best.pt \
-    --cache_dir /path/to/feature_cache \
+    --cache_dir storage/dataset/reward_model/cache \
     --output preference_accuracy.json
 ```
 
@@ -302,8 +333,10 @@ preference, `Similar`, or `Cannot compare` (excluded from training). Records are
 | [rm_pipeline/](tool/rm_pipeline) | Rollout clipping, preference-pair construction, validation, aggregation, reward-model export | `python -m tool.rm_pipeline --help` |
 | [motion_annotation/](tool/motion_annotation) | Pairwise motion rendering and the human annotation interface | `bash tool/motion_annotation/run_prerender_all.sh` |
 
-Runtime readers accept only the canonical schema. Records that do not match
-fail validation; nothing is silently coerced or padded.
+The layout the released pairs use — one label beside the two rollouts it compares — is
+documented in [data_formats.md](tool/rm_pipeline/data_formats.md). Runtime readers accept
+only the canonical schema. Records that do not match fail validation; nothing is silently
+coerced or padded.
 
 ## Repository layout
 
@@ -334,7 +367,7 @@ naming the variable rather than guessing a default.
 | `HUMANTRACKER_RM_CHECKPOINT` | `eval.sh` | HumanScore checkpoint (default: `storage/checkpoints/reward_model/best.pt`) |
 | `G1_VERSION` | `hgpt` backend | G1 revision the released checkpoints assume; must be `5010` |
 | `HUMANTRACKER_ROLLOUT_RUN_ID` | rollout export | run id used in exported filenames (or `--rollout_run_id`) |
-| `DATA_DIR` | `train.sh` | annotated preference-pair directory |
+| `DATA_DIR` | `train.sh` | `preference_pair/` directory of the dataset release |
 | `TASK_FILE` | `run_prerender_all.sh` | `pairs.jsonl` produced by `rm_pipeline` |
 | `HF_LOGS_DIR` | `run_prerender_all.sh` | directory annotations are written to |
 | `PYTHON` | all shell scripts | interpreter to use (defaults to `python`) |

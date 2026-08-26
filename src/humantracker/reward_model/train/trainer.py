@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import io
 import json
 import math
 import random
@@ -23,7 +24,10 @@ from torch.utils.data import DataLoader, Dataset, Subset
 from transformers import get_cosine_schedule_with_warmup
 
 
-from humantracker.reward_model.datasets.parquet_reader import load_annotations
+from humantracker.reward_model.datasets.parquet_reader import (
+    iter_rollout_pairs,
+    load_annotations,
+)
 from humantracker.reward_model.features import (
     FEATURE_HEADS,
     FEATURE_KEYS,
@@ -109,28 +113,25 @@ def clip_length(annotation: dict) -> int:
     return next(iter(lengths))
 
 
-def trajectory_features(candidate: dict) -> np.ndarray:
-    path = Path(candidate["traj_path"])
+def trajectory_features(payload: bytes, candidate: dict, label: str) -> np.ndarray:
     start = int(candidate["start_frame"])
     end = int(candidate["end_frame"])
     valid_frames = end - start
     if not 1 <= valid_frames <= SEQ_LEN:
-        raise ValueError(f"{path}: expected 1..{SEQ_LEN} frames, got {valid_frames}")
-    if not path.is_file():
-        raise FileNotFoundError(path)
-    with np.load(path, allow_pickle=False) as trajectory:
+        raise ValueError(f"{label}: expected 1..{SEQ_LEN} frames, got {valid_frames}")
+    with np.load(io.BytesIO(payload), allow_pickle=False) as trajectory:
         missing = set(FEATURE_KEYS) - set(trajectory.files)
         if missing:
-            raise KeyError(f"{path}: missing features {sorted(missing)}")
+            raise KeyError(f"{label}: missing features {sorted(missing)}")
         arrays = [np.asarray(trajectory[key][start:end], dtype=np.float32) for key in TRAIN_FEATURE_KEYS]
     if any(array.ndim != 2 or array.shape[0] != valid_frames for array in arrays):
         shapes = {key: value.shape for key, value in zip(TRAIN_FEATURE_KEYS, arrays)}
-        raise ValueError(f"{path}: expected {valid_frames} frames, got {shapes}")
+        raise ValueError(f"{label}: expected {valid_frames} frames, got {shapes}")
     features = np.concatenate(arrays, axis=-1)
     if features.shape != (valid_frames, TRAIN_FEATURE_DIM):
-        raise ValueError(f"{path}: expected {(valid_frames, TRAIN_FEATURE_DIM)}, got {features.shape}")
+        raise ValueError(f"{label}: expected {(valid_frames, TRAIN_FEATURE_DIM)}, got {features.shape}")
     if not np.isfinite(features).all():
-        raise ValueError(f"{path}: non-finite features")
+        raise ValueError(f"{label}: non-finite features")
     padded = np.zeros((SEQ_LEN, TRAIN_FEATURE_DIM), dtype=np.float32)
     padded[:valid_frames] = features
     return padded
@@ -138,31 +139,28 @@ def trajectory_features(candidate: dict) -> np.ndarray:
 
 def annotation_pair(
     annotation: dict,
+    payloads: dict[int, bytes],
 ) -> tuple[np.ndarray, np.ndarray, np.uint8, np.uint16]:
+    record_id = annotation["record_id"]
     candidates = {int(item["candidate_idx"]): item for item in annotation["candidates"]}
-    if set(candidates) != {0, 1}:
-        raise ValueError(f"{annotation['record_id']}: candidate_idx must be 0 and 1")
+    if set(candidates) != {0, 1} or set(payloads) != {0, 1}:
+        raise ValueError(f"{record_id}: candidate_idx must be 0 and 1")
     choice = annotation["preference"]["choice_type"]
     valid_frames = np.uint16(clip_length(annotation))
+
+    def features(index: int) -> np.ndarray:
+        return trajectory_features(
+            payloads[index], candidates[index], f"{record_id} candidate {index}"
+        )
+
     if choice == "preference":
         preferred = int(annotation["preference"]["preferred_candidate_idx"])
         if preferred not in candidates:
-            raise ValueError(f"{annotation['record_id']}: invalid preferred candidate")
-        other = 1 - preferred
-        return (
-            trajectory_features(candidates[preferred]),
-            trajectory_features(candidates[other]),
-            np.uint8(1),
-            valid_frames,
-        )
+            raise ValueError(f"{record_id}: invalid preferred candidate")
+        return features(preferred), features(1 - preferred), np.uint8(1), valid_frames
     if choice == "similar":
-        return (
-            trajectory_features(candidates[0]),
-            trajectory_features(candidates[1]),
-            np.uint8(0),
-            valid_frames,
-        )
-    raise ValueError(f"{annotation['record_id']}: unsupported choice {choice}")
+        return features(0), features(1), np.uint8(0), valid_frames
+    raise ValueError(f"{record_id}: unsupported choice {choice}")
 
 
 def bilateral_flip(features: np.ndarray) -> np.ndarray:
@@ -177,6 +175,45 @@ def load_manifest(path: Path, split: str) -> dict:
     return manifest
 
 
+def eval_record_ids(
+    manifest: dict,
+    eligible_train: list[dict],
+    eval_ratio: float,
+    seed: int,
+) -> set[str]:
+    """The train records held out for epoch selection.
+
+    `select_test_groups` ranks motions by a seeded shuffle of their ids, so it only
+    reproduces the published run when the motion ids are the ones that run saw. The
+    published dataset was anonymized after the fact and therefore states the subset
+    outright; recomputing is the fallback for a manifest that predates that field.
+    """
+    selection = manifest.get("model_selection")
+    if selection is None:
+        motions = select_test_groups(eligible_train, eval_ratio, seed)
+        return {
+            item["record_id"] for item in eligible_train if item["motion_id"] in motions
+        }
+    if selection["eval_ratio"] != eval_ratio or selection["seed"] != seed:
+        raise ValueError(
+            f"manifest model_selection was built with eval_ratio={selection['eval_ratio']} "
+            f"seed={selection['seed']}, not {eval_ratio}/{seed}"
+        )
+    record_ids = set(selection["record_ids"])
+    eligible_ids = {item["record_id"] for item in eligible_train}
+    if not record_ids <= eligible_ids:
+        raise ValueError("manifest model_selection names records outside the train split")
+    motions = {item["motion_id"] for item in eligible_train if item["record_id"] in record_ids}
+    leaked = [
+        item["record_id"]
+        for item in eligible_train
+        if item["motion_id"] in motions and item["record_id"] not in record_ids
+    ]
+    if leaked:
+        raise ValueError(f"manifest model_selection splits motion {leaked[0]} across the fit")
+    return record_ids
+
+
 def validate_existing_cache(paths: dict[str, Path], expected: dict) -> dict:
     existing = [path for path in paths.values() if path.exists()]
     if not existing:
@@ -185,10 +222,8 @@ def validate_existing_cache(paths: dict[str, Path], expected: dict) -> dict:
         raise RuntimeError(f"incomplete cache: {[str(path) for path in existing]}")
     metadata = json.loads(paths["metadata"].read_text())
     for key, value in expected.items():
-        if key != "feature_keys" and metadata.get(key) != value:
+        if metadata.get(key) != value:
             raise ValueError(f"stale cache metadata {key}: {metadata.get(key)} != {value}")
-        if key == "feature_keys" and metadata.get(key) != value:
-            raise ValueError(f"stale cache feature_keys: {metadata.get(key)} != {value}")
     feature_dim = metadata.get("feature_dim", TRAIN_FEATURE_DIM)
     shape = (metadata["num_samples"], SEQ_LEN, feature_dim)
     if np.load(paths["trajectory_a"], mmap_mode="r").shape != shape:
@@ -225,9 +260,11 @@ def prepare_cache(data_dir: Path, cache_dir: Path, eval_ratio: float, seed: int)
         "test_manifest_sha256": file_sha256(test_path),
         "eval_ratio": eval_ratio,
         "seed": seed,
+        "model_selection": "manifest" if "model_selection" in train_manifest else "recomputed",
         "seq_len": SEQ_LEN,
         "feature_dim": TRAIN_FEATURE_DIM,
-        "feature_keys": TRAIN_FEATURE_KEYS,
+        # A list, not the tuple: this is compared against its own JSON round-trip.
+        "feature_keys": list(TRAIN_FEATURE_KEYS),
         "padding": "right_zero",
         "use_padding_mask": True,
         "augmentation": "original_and_bilateral_flip",
@@ -255,19 +292,19 @@ def prepare_cache(data_dir: Path, cache_dir: Path, eval_ratio: float, seed: int)
     if any(length > SEQ_LEN for length in lengths):
         raise ValueError(f"clip length exceeds {SEQ_LEN}")
     eligible_train = [item for item in eligible if item["record_id"] in train_ids]
-    eval_motions = select_test_groups(eligible_train, eval_ratio, seed)
+    eval_ids = eval_record_ids(train_manifest, eligible_train, eval_ratio, seed)
     base_split_counts = Counter()
     cached_split_counts = Counter()
     label_counts = Counter()
-    assignments = []
+    assignments = {}
     for annotation in eligible:
         if annotation["record_id"] in test_ids:
             split = 2
-        elif annotation["motion_id"] in eval_motions:
+        elif annotation["record_id"] in eval_ids:
             split = 1
         else:
             split = 0
-        assignments.append(split)
+        assignments[annotation["record_id"]] = split
         base_split_counts[split] += 1
         cached_split_counts[split] += 2
         label_counts[annotation["preference"]["choice_type"]] += 1
@@ -299,8 +336,12 @@ def prepare_cache(data_dir: Path, cache_dir: Path, eval_ratio: float, seed: int)
     )
     sample_meta = []
     sample_index = 0
-    for base_index, (annotation, split) in enumerate(zip(eligible, assignments)):
-        original_a, original_b, label, length = annotation_pair(annotation)
+    base_index = 0
+    for annotation, payloads in iter_rollout_pairs(data_dir):
+        split = assignments.get(annotation["record_id"])
+        if split is None:
+            continue
+        original_a, original_b, label, length = annotation_pair(annotation, payloads)
         augmented_pairs = [
             (original_a, original_b, False),
             (bilateral_flip(original_a), bilateral_flip(original_b), True),
@@ -323,8 +364,9 @@ def prepare_cache(data_dir: Path, cache_dir: Path, eval_ratio: float, seed: int)
                 }
             )
             sample_index += 1
-        if (base_index + 1) % 100 == 0 or base_index + 1 == len(eligible):
-            print(f"cached {base_index + 1}/{len(eligible)} base pairs", flush=True)
+        base_index += 1
+        if base_index % 100 == 0 or base_index == len(eligible):
+            print(f"cached {base_index}/{len(eligible)} base pairs", flush=True)
     if sample_index != sample_count:
         raise RuntimeError(f"cached {sample_index} samples, expected {sample_count}")
     for array in (trajectory_a, trajectory_b, valid_frames, labels, splits, is_augmented):

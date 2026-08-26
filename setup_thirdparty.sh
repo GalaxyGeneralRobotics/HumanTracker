@@ -26,7 +26,7 @@ declare -A UPSTREAM_URL=(
 )
 declare -A UPSTREAM_COMMIT=(
     [GR00T-WholeBodyControl]=c3562ef0c303d888cdf26eef50ff9683447207fe
-    [Humanoid-GPT]=457a040d2cc426e66a7ebf9fa84c05b5ed534b47
+    [Humanoid-GPT]=9f9e7b74ecadb532abbb34b6a779d87191a9bbb6
     [TWIST2]=d5c7108e9ef82d1b8770e5b692f27a1294f3aa8a
     [humanoid-general-motion-tracking]=2a590de25a1eb08e47491977a738549c22f16e1f
 )

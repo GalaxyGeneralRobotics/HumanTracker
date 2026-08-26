@@ -5,7 +5,7 @@ set -euo pipefail
 # (appendix Table 6). Single-GPU: select the device with CUDA_VISIBLE_DEVICES.
 #
 # Required environment:
-#   DATA_DIR  directory of annotated preference-pair parquet shards
+#   DATA_DIR  preference_pair/ directory of the HumanTracker dataset release
 #
 # Optional: RUN_NAME, CACHE_DIR, OUTPUT_DIR, PYTHON and every hyper-parameter
 # below can be overridden from the environment.
