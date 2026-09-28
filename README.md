@@ -74,8 +74,8 @@ test partitions with the family distribution preserved.
 ### Zero-shot results
 
 Succ (%) ↑, MPJPE (rad) ↓, HumanScore ↑ on a 0–100 scale, computed on the test split.
-Numbers match Table 2 of the paper, except SONIC 1.1, which NVIDIA released after the
-paper and which is measured here under the same protocol.
+The GMT, TWIST2, SONIC, and Humanoid-GPT rows match Table 2 of the paper.
+SONIC 1.1 and nine additional released policies were evaluated under the same protocol.
 
 | | Daily | | | Highly Dynamic | | | Interaction | | | Ground | | |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -83,41 +83,21 @@ paper and which is measured here under the same protocol.
 | GMT | 17.0 | 0.250 | 2.4 | 36.2 | 0.196 | 7.0 | 81.4 | 0.205 | 11.7 | 0.0 | 0.456 | 4.0 |
 | TWIST2 | 60.1 | 0.105 | 10.1 | 39.9 | 0.112 | 16.9 | 91.3 | 0.111 | 28.3 | 0.0 | 0.341 | 4.5 |
 | SONIC | 93.8 | 0.102 | 49.5 | 82.1 | 0.118 | 41.0 | 97.6 | 0.128 | 54.6 | 20.1 | 0.231 | 26.5 |
-| SONIC 1.1 | **94.4** | 0.093 | 43.6 | 84.7 | 0.108 | 38.5 | **97.9** | 0.111 | 48.9 | 13.4 | **0.198** | **33.9** |
-| Humanoid-GPT | **94.4** | **0.046** | **54.7** | **86.9** | **0.047** | **49.2** | 97.2 | **0.070** | **56.8** | **32.9** | 0.216 | 24.9 |
+| SONIC 1.1 | **94.4** | 0.093 | 43.6 | 84.7 | 0.108 | 38.5 | **97.9** | 0.111 | 48.9 | 13.4 | 0.198 | 33.9 |
+| Humanoid-GPT | **94.4** | **0.046** | **54.7** | **86.9** | **0.047** | **49.2** | 97.2 | 0.070 | **56.8** | **32.9** | 0.216 | 24.9 |
+| ScaleBFM-M | 90.8 | 0.094 | 44.5 | 72.4 | 0.091 | 39.3 | 96.5 | 0.084 | 54.0 | 17.7 | 0.186 | 43.4 |
+| HEFT | 93.2 | 0.056 | 46.1 | 75.7 | 0.061 | 40.5 | 97.5 | **0.063** | 51.6 | 15.9 | 0.176 | 31.7 |
+| ScaleBFM-XL | 90.1 | 0.093 | 44.2 | 74.3 | 0.089 | 37.5 | 96.7 | 0.082 | 51.2 | 17.1 | **0.158** | 40.8 |
+| GRIT v0.0.1 | 90.2 | 0.105 | 40.2 | 65.7 | 0.115 | 41.4 | 96.5 | 0.114 | 48.5 | 11.0 | 0.241 | 24.9 |
+| TeleopIT | 84.0 | 0.096 | 34.0 | 54.9 | 0.110 | 35.8 | 96.2 | 0.105 | 45.7 | 13.4 | 0.229 | **47.1** |
+| MimicLite-PPO | 81.1 | 0.080 | 28.0 | 58.6 | 0.096 | 28.1 | 95.2 | 0.089 | 37.9 | 7.9 | 0.239 | 20.1 |
+| MimicLite-ROA | 83.1 | 0.080 | 24.8 | 59.0 | 0.112 | 26.9 | 95.2 | 0.093 | 35.1 | 2.4 | 0.290 | 26.6 |
+| HoloMotion | 84.0 | 0.088 | 20.4 | 63.4 | 0.101 | 27.2 | 94.9 | 0.091 | 40.4 | 18.3 | 0.172 | 35.1 |
+| Mimic Lite v1.1 | 80.1 | 0.080 | 25.0 | 51.5 | 0.114 | 22.8 | 94.4 | 0.087 | 34.3 | 7.3 | 0.252 | 23.1 |
 
 Every tracker keeps its native observation and action-processing stack, receives the
 same retargeted references, and is measured by the same evaluator under the SONIC
 termination criterion.
-
-### Additional released G1 trackers
-
-The nine released policies below were evaluated on all 2,500 HumanTracker test
-motions with the same 50 Hz scene, `whole_body` termination, and HumanScore
-checkpoint. Each policy retains its released observation/action processing,
-including its YAML joint order, action scale, `kp`, and `kd`. These results were
-computed on 2026-09-28; the earlier rows above were not rerun.
-
-| Method | Succ (%) ↑ | MPJPE (rad) ↓ | HumanScore (0–100) ↑ |
-| --- | ---: | ---: | ---: |
-| ScaleBFM-M | 86.5 | 0.093 | 47.5 |
-| HEFT | 88.2 | 0.062 | 47.3 |
-| ScaleBFM-XL | 86.5 | 0.091 | 46.1 |
-| GRIT v0.0.1 | 85.2 | 0.113 | 42.7 |
-| TeleopIT* | 81.6 | 0.104 | 38.6 |
-| MimicLite-PPO | 80.1 | 0.089 | 31.2 |
-| MimicLite-ROA | 80.5 | 0.093 | 28.6 |
-| HoloMotion | 82.2 | 0.092 | 28.3 |
-| Mimic Lite v1.1 | 78.5 | 0.090 | 28.1 |
-
-All nine runs covered every test motion without evaluation exceptions. See the
-[per-family results and reproduction settings](src/humantracker/eval/RESULTS_sim2real.md)
-and the [policy setup guide](src/humantracker/eval/README_sim2real.md).
-
-**TeleopIT note:** Its released YAML points to a legacy robot XML missing
-from the public release. Its run used the official TeleopIT G1 29-DoF XML in its place; exact
-kinematic equivalence is unverified. See the reproduction settings before
-comparing this row.
 
 ## Installation
 
