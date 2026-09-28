@@ -1,0 +1,46 @@
+diff --git a/sim2real/config/robots/__init__.py b/sim2real/config/robots/__init__.py
+index 0d6a33a..39d6fce 100644
+--- a/sim2real/config/robots/__init__.py
++++ b/sim2real/config/robots/__init__.py
+@@ -1,23 +1,32 @@
++"""Robot configs, loaded only when the selected robot needs them."""
++
++from typing import Dict
++
+ from sim2real.config.robots.base import RobotCfg
+ from sim2real.config.robots.g1 import G1_CFG
+-from sim2real.config.robots.h2 import H2_CFG
+-from typing import Dict
+ 
+ 
+-_ROBOT_CFGS: Dict[str, RobotCfg] = {
+-    G1_CFG.name: G1_CFG,
+-    H2_CFG.name: H2_CFG,
+-    "unitree_h2": H2_CFG,
+-}
++_ROBOT_CFGS: Dict[str, RobotCfg] = {G1_CFG.name: G1_CFG}
+ 
+ 
+ def get_robot_cfg(name: str) -> RobotCfg:
+     key = str(name).strip().lower()
++    if key in {"h2", "unitree_h2"}:
++        from sim2real.config.robots.h2 import H2_CFG
++
++        return H2_CFG
+     try:
+         return _ROBOT_CFGS[key]
+     except KeyError as exc:
+-        available = ", ".join(sorted(_ROBOT_CFGS))
+-        raise ValueError(f"Unknown robot '{name}'. Available robots: {available}") from exc
++        raise ValueError(f"Unknown robot '{name}'. Available robots: g1, h2, unitree_h2") from exc
++
++
++def __getattr__(name: str):
++    if name == "H2_CFG":
++        from sim2real.config.robots.h2 import H2_CFG
++
++        return H2_CFG
++    raise AttributeError(name)
+ 
+ 
+ __all__ = ["RobotCfg", "G1_CFG", "H2_CFG", "get_robot_cfg"]

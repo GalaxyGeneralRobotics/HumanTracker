@@ -23,12 +23,14 @@ declare -A UPSTREAM_URL=(
     [Humanoid-GPT]=https://github.com/GalaxyGeneralRobotics/Humanoid-GPT.git
     [TWIST2]=https://github.com/amazon-far/TWIST2.git
     [humanoid-general-motion-tracking]=https://github.com/zixuan417/humanoid-general-motion-tracking.git
+    [sim2real]=https://github.com/EGalahad/sim2real.git
 )
 declare -A UPSTREAM_COMMIT=(
     [GR00T-WholeBodyControl]=c3562ef0c303d888cdf26eef50ff9683447207fe
     [Humanoid-GPT]=9f9e7b74ecadb532abbb34b6a779d87191a9bbb6
     [TWIST2]=d5c7108e9ef82d1b8770e5b692f27a1294f3aa8a
     [humanoid-general-motion-tracking]=2a590de25a1eb08e47491977a738549c22f16e1f
+    [sim2real]=0962762449a902eae0646d108cd57b355d79e093
 )
 
 echo "==> cloning upstream trackers at their pinned commits"

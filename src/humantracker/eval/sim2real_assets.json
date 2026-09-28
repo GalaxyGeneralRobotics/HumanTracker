@@ -1,0 +1,79 @@
+{
+  "upstream": "https://github.com/EGalahad/sim2real",
+  "upstream_commit": "0962762449a902eae0646d108cd57b355d79e093",
+  "checkpoint_source": "https://drive.google.com/drive/folders/1lrPyiiy7anyG3P4wHNIQQQlydboLPd9e",
+  "files": {
+    "grit/v0_0_1/policy.onnx": {
+      "bytes": 9441300,
+      "sha256": "39d573e970b7088275ed68ec8a9597fa9c402d98d5ad211991db7d8d0f5a82b9"
+    },
+    "grit/v0_0_1/policy.yaml": {
+      "bytes": 4338,
+      "sha256": "4112c52670ed8f2e135376485b384c15a3177389bc8fef2115ef2756a658bfc6"
+    },
+    "heft/pmg/policy.onnx": {
+      "bytes": 24324327,
+      "sha256": "192aaacc49ce066b85bdc9822bc35eca9ae21b8efc8371c089f7bc0077a86791"
+    },
+    "heft/pmg/policy.yaml": {
+      "bytes": 10374,
+      "sha256": "cd8ee2606c16d1067530345eb5ec3538ab86cfe40958391f74d9ee090434156d"
+    },
+    "holomotion/v1_4_0/policy.onnx": {
+      "bytes": 1640343685,
+      "sha256": "859174937272747e762075db482e2b8d05d40dacb3a09884fc9d7d42086bbffe"
+    },
+    "holomotion/v1_4_0/policy.yaml": {
+      "bytes": 7140,
+      "sha256": "6909ed88ea64aeade07d52f118edd3c6e966640d14562b5194539d68a5ec0ac8"
+    },
+    "mimic-lite/ppo/policy.onnx": {
+      "bytes": 12027363,
+      "sha256": "031b8d67557795d86e4ed3f30e7a707414534feba65f330c64f1b07a1f5c7a0b"
+    },
+    "mimic-lite/ppo/policy.yaml": {
+      "bytes": 6756,
+      "sha256": "fa094087fc24d3e4b68857301c0c3f5d6f4992148d8e171a22088c7299440878"
+    },
+    "mimic-lite/roa/policy.onnx": {
+      "bytes": 26853863,
+      "sha256": "78aec8b2738f3940fb47a58021b9584faa3f69b53476551c52a2026909db33c1"
+    },
+    "mimic-lite/roa/policy.yaml": {
+      "bytes": 6756,
+      "sha256": "47be255e107d0447832b4819b555fe6c97208687b952f58b84338e6aeabf5069"
+    },
+    "mimic-lite/v1_1/policy.onnx": {
+      "bytes": 8226938,
+      "sha256": "f647b2674a593cdc9e3b661f653b3f0f120238523a79f3ec7765bc480af22f48"
+    },
+    "mimic-lite/v1_1/policy.yaml": {
+      "bytes": 7652,
+      "sha256": "4cc74220a3aa565baa02a21b725e2de89c7c333d52b06b18b21ddd1f46bb34db"
+    },
+    "scalebfm/humanoid_transformer_m/policy.onnx": {
+      "bytes": 13021189,
+      "sha256": "19628312a3fc6ff4c7f9e5ced5ec0739edef28fe52449d0127c1f9cc7eb6b25d"
+    },
+    "scalebfm/humanoid_transformer_m/policy.yaml": {
+      "bytes": 12137,
+      "sha256": "50db5fb236ef0a31f34b3ab131e6e02b5338dd2cd387fe4abdce469c9a3c50a2"
+    },
+    "scalebfm/humanoid_transformer_xl/policy.onnx": {
+      "bytes": 40825699,
+      "sha256": "882b199a00652764d2e6e0807828d77713267eeae511041f07d151a4c667b8e7"
+    },
+    "scalebfm/humanoid_transformer_xl/policy.yaml": {
+      "bytes": 12137,
+      "sha256": "50db5fb236ef0a31f34b3ab131e6e02b5338dd2cd387fe4abdce469c9a3c50a2"
+    },
+    "teleopit/policy.onnx": {
+      "bytes": 4235052,
+      "sha256": "3e305c9eb799f1f9a9d688524b016c38ca284ff14f282dd90d487a0feec7a45b"
+    },
+    "teleopit/policy.yaml": {
+      "bytes": 5612,
+      "sha256": "44b6d0513b91601eecee106783b9514b1cc87311801911f3b0fcd7660a693585"
+    }
+  }
+}

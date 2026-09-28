@@ -45,6 +45,7 @@ data tools used to build the preference dataset.
 
 ## News
 
+- **2026-09-28** — Evaluated nine additional released G1 trackers on the HumanTracker test split.
 - **2026-08-22** — Evaluated SONIC 1.1.
 - **2026-06-19** — Accepted to ECCV 2026.
 
@@ -89,6 +90,35 @@ Every tracker keeps its native observation and action-processing stack, receives
 same retargeted references, and is measured by the same evaluator under the SONIC
 termination criterion.
 
+### Additional released G1 trackers
+
+The nine released policies below were evaluated on all 2,500 HumanTracker test
+motions with the same 50 Hz scene, `whole_body` termination, and HumanScore
+checkpoint. Each policy retains its released observation/action processing,
+including its YAML joint order, action scale, `kp`, and `kd`. These results were
+computed on 2026-09-28; the earlier rows above were not rerun.
+
+| Method | Succ (%) ↑ | MPJPE (rad) ↓ | HumanScore (0–100) ↑ |
+| --- | ---: | ---: | ---: |
+| ScaleBFM-M | 86.5 | 0.093 | 47.5 |
+| HEFT | 88.2 | 0.062 | 47.3 |
+| ScaleBFM-XL | 86.5 | 0.091 | 46.1 |
+| GRIT v0.0.1 | 85.2 | 0.113 | 42.7 |
+| TeleopIT* | 81.6 | 0.104 | 38.6 |
+| MimicLite-PPO | 80.1 | 0.089 | 31.2 |
+| MimicLite-ROA | 80.5 | 0.093 | 28.6 |
+| HoloMotion | 82.2 | 0.092 | 28.3 |
+| Mimic Lite v1.1 | 78.5 | 0.090 | 28.1 |
+
+All nine runs covered every test motion without evaluation exceptions. See the
+[per-family results and reproduction settings](src/humantracker/eval/RESULTS_sim2real.md)
+and the [policy setup guide](src/humantracker/eval/README_sim2real.md).
+
+**TeleopIT note:** Its released YAML points to a legacy robot XML missing
+from the public release. Its run used the official TeleopIT G1 29-DoF XML in its place; exact
+kinematic equivalence is unverified. See the reproduction settings before
+comparing this row.
+
 ## Installation
 
 Prerequisites: an NVIDIA GPU with CUDA 12.x, and Conda or Miniconda.
@@ -110,7 +140,7 @@ gitignored and must never be committed.
 
 ### Upstream trackers
 
-The four evaluated trackers are not part of this repository.
+The evaluated trackers are not part of this repository.
 
 ```bash
 ./setup_thirdparty.sh
@@ -126,6 +156,7 @@ through `git-lfs`, so install that first.
 | [Humanoid-GPT](https://github.com/GalaxyGeneralRobotics/Humanoid-GPT) | `hgpt` | [`9f9e7b7`](https://github.com/GalaxyGeneralRobotics/Humanoid-GPT/commit/9f9e7b74ecadb532abbb34b6a779d87191a9bbb6) | ships with the checkout |
 | [TWIST2](https://github.com/amazon-far/TWIST2) | `twist2` | `d5c7108` | ships with the checkout |
 | [humanoid-general-motion-tracking](https://github.com/zixuan417/humanoid-general-motion-tracking) | `gmt` | `2a590de` | ships with the checkout |
+| [sim2real](https://github.com/EGalahad/sim2real) | nine additional G1 policies | `0962762` | [released checkpoints](src/humantracker/eval/README_sim2real.md) |
 
 SONIC publishes its ONNX policy on Hugging Face rather than in the repository:
 
@@ -170,7 +201,8 @@ python -m humantracker.eval.eval_parallel_tracker \
 HumanScore is read from `storage/checkpoints/reward_model/best.pt`, where the released
 weights unpack; `--rm_checkpoint` selects another one.
 
-`--tracker` accepts `sonic`, `twist2`, `gmt` and `hgpt`, one backend module each under
+`--tracker` accepts `sonic`, `twist2`, `gmt` and `hgpt`, plus nine released
+[sim2real policies](src/humantracker/eval/README_sim2real.md). Backends live under
 [backends/](src/humantracker/eval/backends). A backend declares the flags only it
 needs — `--policy` for `twist2`, `gmt` and `hgpt`, `--encoder`/`--decoder` for
 `sonic` — so `--help` shows the selected tracker's options and no others.

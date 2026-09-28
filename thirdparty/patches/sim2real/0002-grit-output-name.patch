@@ -1,0 +1,14 @@
+diff --git a/sim2real/sim_env/integrated_sim2sim.py b/sim2real/sim_env/integrated_sim2sim.py
+index 7a4d85d..2c232e0 100644
+--- a/sim2real/sim_env/integrated_sim2sim.py
++++ b/sim2real/sim_env/integrated_sim2sim.py
+@@ -328,7 +328,8 @@ class IntegratedPolicyRuntime:
+ 
+         def policy(input_dict: dict[str, Any]):
+             output_dict = runtime_module(input_dict)
+-            action = np.asarray(output_dict["action"], dtype=np.float32)
++            action_key = "action" if "action" in output_dict else "actions"
++            action = np.asarray(output_dict[action_key], dtype=np.float32)
+             next_state_dict = {
+                 k[1]: v
+                 for k, v in output_dict.items()

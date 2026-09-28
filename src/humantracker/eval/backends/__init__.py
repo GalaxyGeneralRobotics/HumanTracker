@@ -36,6 +36,14 @@ BACKEND_MODULES = {
     "hgpt": "humantracker.eval.backends.hgpt",
     "sonic": "humantracker.eval.backends.sonic",
     "twist2": "humantracker.eval.backends.twist2",
+    **{
+        name: "humantracker.eval.backends.sim2real"
+        for name in (
+            "heft", "holomotion", "mimiclite-ppo", "mimiclite-roa",
+            "mimiclite-v1.1", "scalebfm-m", "scalebfm-xl",
+            "grit-v0.0.1", "teleopit",
+        )
+    },
 }
 
 BACKEND_NAMES: Tuple[str, ...] = tuple(BACKEND_MODULES)
