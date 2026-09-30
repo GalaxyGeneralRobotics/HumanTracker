@@ -34,6 +34,7 @@ import numpy as np
 BACKEND_MODULES = {
     "gmt": "humantracker.eval.backends.gmt",
     "hgpt": "humantracker.eval.backends.hgpt",
+    "hgpt_sparse": "humantracker.eval.backends.hgpt_sparse",
     "sonic": "humantracker.eval.backends.sonic",
     "twist2": "humantracker.eval.backends.twist2",
     **{
@@ -63,8 +64,8 @@ PROTOCOL = (
 def load_backend(name: str):
     """Import the backend registered under ``name``, checking it implements the protocol.
 
-    Only the selected backend is imported: they pull in mutually incompatible upstream
-    trees, so importing all four would break whichever environment is active.
+    Only the selected backend is imported to avoid loading unused inference libraries.
+    All backend source code is included in HumanTracker and shares one environment.
     """
     module = importlib.import_module(BACKEND_MODULES[name])
     missing = [attr for attr in PROTOCOL if not hasattr(module, attr)]

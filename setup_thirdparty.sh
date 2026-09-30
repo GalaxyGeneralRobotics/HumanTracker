@@ -1,73 +1,41 @@
 #!/usr/bin/env bash
-# Clone the pinned upstream trackers and apply this repository's patches to them.
+# Fetch what the tracker backends need from outside this repository.
 #
-# Why patches instead of forks: the pinned commits stay exactly upstream's, and every
-# local edit is reviewable in one place. See thirdparty/patches/README.md for the
-# rationale behind each one. Re-running this script is safe -- a checkout already at
-# its pinned commit, or a patch already applied, is detected and skipped.
-
+#   1. Native backends: policy weights only, SHA-256 checked by
+#      humantracker.download_weights. Arguments are forwarded to it, e.g.
+#      `./setup_thirdparty.sh --tracker hgpt`.
+#   2. sim2real backend: the sim2real checkout at its pinned commit, with the patches
+#      in thirdparty/patches/sim2real applied. See thirdparty/patches/README.md.
+#
+# Re-running is safe: verified weights, a checkout already at its pin and patches
+# already applied are detected and skipped.
 set -euo pipefail
 
-root="$(cd "$(dirname "$0")" && pwd)"
-cd "$root"
+repo="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$repo"
 
-if ! command -v git-lfs >/dev/null 2>&1; then
-    echo "git-lfs is required: GR00T-WholeBodyControl distributes assets through it." >&2
-    exit 1
+echo "==> native tracker weights"
+"${PYTHON:-python}" -m humantracker.download_weights "$@"
+
+sim2real_url=https://github.com/EGalahad/sim2real.git
+sim2real_commit=0962762449a902eae0646d108cd57b355d79e093
+sim2real_dir=thirdparty/sim2real
+
+echo "==> sim2real at $sim2real_commit"
+if [ ! -e "$sim2real_dir/.git" ]; then
+    git clone "$sim2real_url" "$sim2real_dir"
+fi
+if [ "$(git -C "$sim2real_dir" rev-parse HEAD)" != "$sim2real_commit" ]; then
+    # Not a shallow fetch by sha: most git servers only serve branch/tag tips that way.
+    git -C "$sim2real_dir" fetch origin
+    git -C "$sim2real_dir" checkout "$sim2real_commit"
 fi
 
-# upstream url, pinned commit -- one pair per thirdparty/<dir>, in the same order as
-# the table in README.md.
-declare -A UPSTREAM_URL=(
-    [GR00T-WholeBodyControl]=https://github.com/NVlabs/GR00T-WholeBodyControl.git
-    [Humanoid-GPT]=https://github.com/GalaxyGeneralRobotics/Humanoid-GPT.git
-    [TWIST2]=https://github.com/amazon-far/TWIST2.git
-    [humanoid-general-motion-tracking]=https://github.com/zixuan417/humanoid-general-motion-tracking.git
-    [sim2real]=https://github.com/EGalahad/sim2real.git
-)
-declare -A UPSTREAM_COMMIT=(
-    [GR00T-WholeBodyControl]=c3562ef0c303d888cdf26eef50ff9683447207fe
-    [Humanoid-GPT]=9f9e7b74ecadb532abbb34b6a779d87191a9bbb6
-    [TWIST2]=d5c7108e9ef82d1b8770e5b692f27a1294f3aa8a
-    [humanoid-general-motion-tracking]=2a590de25a1eb08e47491977a738549c22f16e1f
-    [sim2real]=0962762449a902eae0646d108cd57b355d79e093
-)
-
-echo "==> cloning upstream trackers at their pinned commits"
-for name in "${!UPSTREAM_URL[@]}"; do
-    dir="thirdparty/$name"
-    if [ ! -e "$dir/.git" ]; then
-        git clone "${UPSTREAM_URL[$name]}" "$dir"
+for patch in thirdparty/patches/sim2real/*.patch; do
+    if git -C "$sim2real_dir" apply --reverse --check "$repo/$patch" 2>/dev/null; then
+        echo "    already applied  ${patch#thirdparty/patches/}"
+    else
+        git -C "$sim2real_dir" apply "$repo/$patch"
+        echo "    applied          ${patch#thirdparty/patches/}"
     fi
-    current="$(git -C "$dir" rev-parse HEAD)"
-    if [ "$current" != "${UPSTREAM_COMMIT[$name]}" ]; then
-        # Not a shallow fetch by sha: most git servers do not allow arbitrary
-        # commits to be fetched that way, only branch/tag tips.
-        git -C "$dir" fetch origin
-        git -C "$dir" checkout "${UPSTREAM_COMMIT[$name]}"
-    fi
-done
-
-echo "==> applying patches"
-for dir in thirdparty/patches/*/; do
-    name="$(basename "$dir")"
-    repo="$root/thirdparty/$name"
-    if [ ! -e "$repo/.git" ]; then
-        echo "no checkout at thirdparty/$name -- run the clone step above first" >&2
-        exit 1
-    fi
-    for patch in "$dir"*.patch; do
-        label="${patch#thirdparty/patches/}"
-        if git -C "$repo" apply --reverse --check "$root/$patch" 2>/dev/null; then
-            echo "    already applied  $label"
-        else
-            git -C "$repo" apply "$root/$patch"
-            echo "    applied          $label"
-        fi
-    done
-done
-
-echo "==> checkout state"
-for name in "${!UPSTREAM_URL[@]}"; do
-    printf '  %-40s %s\n' "$name" "$(git -C "thirdparty/$name" rev-parse HEAD)"
 done

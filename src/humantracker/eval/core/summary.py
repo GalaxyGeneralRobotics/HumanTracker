@@ -46,6 +46,22 @@ OPTIONAL_METRICS = (
     "action_jerk_mean",
     "foot_contact_acc",
     "foot_contact_iou",
+    "cmd_kpt_pos_mae",
+    "cmd_joint_pos_mae",
+    "root_lat_sway_m",
+    "root_bounce_m",
+    "root_roll_std",
+    "root_pitch_std",
+    "heading_rate_abs",
+    "sim_duty_l",
+    "sim_duty_r",
+    "sim_duty_asym",
+    "sim_single_support",
+    "step_period_std_s",
+    "cadence_hz",
+    "action_jerk_p95",
+    "action_jerk_med",
+    "action_hf_ratio",
 )
 
 # The subset of the above that the tables print, with each row's label and unit.

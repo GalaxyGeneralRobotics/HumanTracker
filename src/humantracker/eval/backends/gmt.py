@@ -3,13 +3,16 @@
 import os
 import sys
 
-_cudnn_dir = list(__import__("nvidia.cudnn", fromlist=["cudnn"]).__path__)[0] + "/lib"
-_cuda_rt_dir = list(
-    __import__("nvidia.cuda_runtime", fromlist=["cuda_runtime"]).__path__
-)[0] + "/lib"
-os.environ["LD_LIBRARY_PATH"] = (
-    _cuda_rt_dir + ":" + _cudnn_dir + ":" + os.environ.get("LD_LIBRARY_PATH", "")
-)
+try:
+    _cudnn_dir = list(__import__("nvidia.cudnn", fromlist=["cudnn"]).__path__)[0] + "/lib"
+    _cuda_rt_dir = list(
+        __import__("nvidia.cuda_runtime", fromlist=["cuda_runtime"]).__path__
+    )[0] + "/lib"
+    os.environ["LD_LIBRARY_PATH"] = (
+        _cuda_rt_dir + ":" + _cudnn_dir + ":" + os.environ.get("LD_LIBRARY_PATH", "")
+    )
+except ModuleNotFoundError:
+    pass
 
 import numpy as np
 import mujoco
@@ -561,7 +564,7 @@ def evaluate_single_trajectory(
 
 OPTIONS = (
     ("--policy", {
-        "default": "thirdparty/humanoid-general-motion-tracking/assets/pretrained_checkpoints/pretrained.pt",
+        "default": "storage/checkpoints/trackers/gmt/pretrained.pt",
         "help": "GMT TorchScript policy",
     }),
 )

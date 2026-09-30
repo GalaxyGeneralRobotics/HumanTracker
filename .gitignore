@@ -18,12 +18,11 @@ egf_conf/
 !src/**
 !tool/
 !tool/**
-!tests/
-!tests/**
 
 # --- Assets the harness opens ------------------------------------------------
 # storage/ is otherwise generated data. Only the G1 description the evaluation
-# actually loads ships, with Unitree's own LICENSE alongside it, plus the teaser.
+# actually loads ships, with Unitree's own LICENSE alongside it, plus the teaser
+# and the released HumanScore checkpoint the evaluation reads by default.
 !storage/
 storage/*
 !storage/assets/
@@ -31,6 +30,11 @@ storage/assets/*
 !storage/assets/teaser.png
 !storage/assets/unitree_g1_5010/
 !storage/assets/unitree_g1_5010/**
+!storage/checkpoints/
+storage/checkpoints/*
+!storage/checkpoints/reward_model/
+storage/checkpoints/reward_model/*
+!storage/checkpoints/reward_model/best.pt
 
 # --- Headless rendering ------------------------------------------------------
 # MuJoCo's EGL backend needs an ICD vendor file, and eval_parallel_tracker.py points
@@ -66,11 +70,13 @@ __pycache__/
 *.before_*
 .codex_backup/
 
-# Model weights: never tracked, even inside a whitelisted tree such as storage/
+# Model weights: never tracked, even inside a whitelisted tree such as storage/,
+# except the released HumanScore checkpoint.
 *.pt
 *.pth
 *.ckpt
 *.onnx
+!storage/checkpoints/reward_model/best.pt
 
 # Local secrets and runtime state
 .env

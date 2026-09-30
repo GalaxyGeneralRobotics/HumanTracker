@@ -11,12 +11,14 @@ from __future__ import annotations
 import argparse
 import multiprocessing as mp
 import os
+import sys
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from typing import Dict, Optional, Sequence, Tuple
 
 from tqdm import tqdm
 
 from humantracker.eval.backends import BACKEND_NAMES, load_backend
+from humantracker.eval.core import ref_noise
 from humantracker.eval.core.termination_metrics import TERMINATION_METRICS
 from humantracker.eval.paths import ROOT, required_file
 from humantracker.eval.runner import (
@@ -77,6 +79,38 @@ def build_parser(
                         help="tracker name recorded in exported rollouts; defaults to --tracker")
     parser.add_argument("--rollout_run_id", default="")
     parser.add_argument("--rollout_group", default="rlhf_rollout")
+    parser.add_argument(
+        "--ref_noise",
+        default="none",
+        choices=("none", *sorted(ref_noise.PROFILES)),
+        help="corrupt the policy reference only (metrics/GT/ghost stay clean). "
+             "'online_tracking' / 'vla_chunk' corrupt the shared qpos stream; "
+             "'sparse_anchor' / 'vla_fill' keep the 5 endpoints and add an "
+             "after-FK residual on the other nine links; "
+             "'xsens_human' warps all 14 bodies to human bone ratios "
+             "(ScaleBridge); 'gmr_stream' is delayed+EMA+IK-residual qpos "
+             "(Humanoid-GPT deploy)",
+    )
+    parser.add_argument(
+        "--ref_noise_seed",
+        type=int,
+        default=0,
+        help="base seed hashed with the clip name so every tracker shares the realization",
+    )
+    parser.add_argument(
+        "--ref_noise_scale",
+        type=float,
+        default=1.0,
+        help="multiplier on the selected --ref_noise magnitudes (timing is unscaled)",
+    )
+    parser.add_argument(
+        "--ref_noise_vel",
+        default=ref_noise.VelocityMode.FILTERED,
+        choices=ref_noise.VelocityMode.ALL,
+        help="how the corrupted stream's velocity is produced. 'clean' leaves it "
+             "untouched, which is the only setting comparable across trackers "
+             "that read different reference fields",
+    )
 
     for flag, options in backend_options:
         parser.add_argument(flag, **options)
@@ -97,16 +131,17 @@ def selected_tracker() -> Optional[str]:
 
 
 def configure_rendering() -> None:
-    """Select headless EGL before a backend, and with it mujoco, is imported.
+    """Select headless EGL on Linux; retain native platform defaults elsewhere.
 
     ``import mujoco`` creates its GL context eagerly, so these have to be in the
     environment by the time the backend module loads. Setting them afterwards leaves EGL
     searching the system vendor directories, where the ICD file this repository ships in
     ``egl_conf/`` is not found, and the import fails on a headless machine.
     """
-    os.environ.setdefault("MUJOCO_GL", "egl")
-    os.environ.setdefault("PYOPENGL_PLATFORM", "egl")
-    os.environ.setdefault("__EGL_VENDOR_LIBRARY_DIRS", str(ROOT / "egl_conf"))
+    if sys.platform.startswith("linux"):
+        os.environ.setdefault("MUJOCO_GL", "egl")
+        os.environ.setdefault("PYOPENGL_PLATFORM", "egl")
+        os.environ.setdefault("__EGL_VENDOR_LIBRARY_DIRS", str(ROOT / "egl_conf"))
     os.environ.setdefault("XLA_PYTHON_CLIENT_PREALLOCATE", "false")
 
 
@@ -131,6 +166,8 @@ def main() -> None:
     if args.videos_only and args.output_json:
         raise ValueError("--videos_only does not write --output_json")
     required_file(args.rm_checkpoint)
+    if args.ref_noise_scale < 0:
+        raise ValueError(f"--ref_noise_scale must be non-negative, got {args.ref_noise_scale}")
 
     backend = load_backend(args.tracker)
     backend.validate(args)

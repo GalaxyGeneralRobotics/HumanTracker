@@ -20,6 +20,7 @@ from typing import Dict, List, Tuple
 import numpy as np
 
 from humantracker.eval.backends import load_backend
+from humantracker.eval.core import ref_noise
 from humantracker.eval.core.summary import FAILED
 from humantracker.eval.paths import repo_path, required_dir, required_file
 
@@ -200,6 +201,27 @@ def print_summaries(backend, all_metrics: List[Dict]) -> None:
     backend.print_overall_summary(all_metrics)
 
 
+def ref_noise_record(args: argparse.Namespace, backend) -> Dict:
+    """What was injected, and which reference fields this backend actually reads.
+
+    The second half is not decoration: the backends consume different parts of
+    the reference, so a corruption that touches reference velocity is not
+    comparable across trackers unless the record says so.
+    """
+    consumed = list(getattr(backend, "REF_FIELDS_CONSUMED", ()))
+    if getattr(args, "ref_noise", "none") == "none":
+        return {"profile": "none", "fields_consumed": consumed}
+    record = ref_noise.build_profile(
+        args.ref_noise, args.ref_noise_scale, args.ref_noise_vel
+    ).describe()
+    record["seed"] = int(args.ref_noise_seed)
+    record["fields_consumed"] = consumed
+    record["velocity_affects_this_tracker"] = any(
+        "vel" in field for field in consumed
+    )
+    return record
+
+
 def save_json(args: argparse.Namespace, backend, all_metrics: List[Dict]) -> Path | None:
     if not args.output_json:
         return None
@@ -218,6 +240,7 @@ def save_json(args: argparse.Namespace, backend, all_metrics: List[Dict]) -> Pat
     out_path.parent.mkdir(parents=True, exist_ok=True)
     output_data = {
         "termination_metric": args.termination_metric,
+        "ref_noise": ref_noise_record(args, backend),
         "overall_summary": json_safe(overall_summary),
         "category_summaries": json_safe(category_summaries),
         "per_trajectory": json_safe(all_metrics),

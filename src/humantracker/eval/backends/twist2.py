@@ -6,13 +6,16 @@ import sys
 # suppress ONNX Runtime GPU discovery warning (must be before ort import)
 os.environ["ORT_LOG_LEVEL"] = "ERROR"
 
-_cudnn_dir = list(__import__("nvidia.cudnn", fromlist=["cudnn"]).__path__)[0] + "/lib"
-_cuda_rt_dir = list(
-    __import__("nvidia.cuda_runtime", fromlist=["cuda_runtime"]).__path__
-)[0] + "/lib"
-os.environ["LD_LIBRARY_PATH"] = (
-    _cuda_rt_dir + ":" + _cudnn_dir + ":" + os.environ.get("LD_LIBRARY_PATH", "")
-)
+try:
+    _cudnn_dir = list(__import__("nvidia.cudnn", fromlist=["cudnn"]).__path__)[0] + "/lib"
+    _cuda_rt_dir = list(
+        __import__("nvidia.cuda_runtime", fromlist=["cuda_runtime"]).__path__
+    )[0] + "/lib"
+    os.environ["LD_LIBRARY_PATH"] = (
+        _cuda_rt_dir + ":" + _cudnn_dir + ":" + os.environ.get("LD_LIBRARY_PATH", "")
+    )
+except ModuleNotFoundError:
+    pass
 
 import warnings
 import numpy as np
@@ -541,7 +544,7 @@ def evaluate_single_trajectory(
 
 OPTIONS = (
     ("--policy", {
-        "default": "thirdparty/TWIST2/assets/ckpts/twist2_1017_25k.onnx",
+        "default": "storage/checkpoints/trackers/twist2/twist2_1017_25k.onnx",
         "help": "TWIST2 policy ONNX",
     }),
 )

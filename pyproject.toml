@@ -18,7 +18,6 @@ dependencies = [
     "opencv-python>=4.11",
     "mujoco>=3.3.7",
     "onnxruntime>=1.20,<1.24",
-    "jax>=0.8",
     "tqdm>=4.67",
     "wandb>=0.24",
 ]
@@ -39,3 +38,6 @@ Paper = "https://arxiv.org/abs/2608.13555"
 [tool.setuptools.packages.find]
 where = ["src"]
 include = ["humantracker*"]
+
+[tool.setuptools.package-data]
+"humantracker.eval.native" = ["SOURCES.md", "*/LICENSE"]

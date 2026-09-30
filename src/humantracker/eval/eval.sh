@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Reproduce the four-tracker zero-shot comparison, one process per GPU.
+# Run the four native GPU tracker backends, one process per GPU. The nine released
+# sim2real policies run from their own environment: see sim2real/eval.sh.
 #
 # Required environment:
 #   HUMANTRACKER_DATASET        motion dataset root containing test.json
@@ -23,11 +24,11 @@ video_height=1440
 # Tracker assets
 scene_xml=$repo/storage/assets/unitree_g1_5010/scene_mjx_track_papergray.xml
 robot_xml=$repo/storage/assets/unitree_g1_5010/g1_mjx_track_papergray.xml
-sonic_encoder=$repo/thirdparty/GR00T-WholeBodyControl/gear_sonic_deploy/policy/v1_1/model_encoder.onnx
-sonic_decoder=$repo/thirdparty/GR00T-WholeBodyControl/gear_sonic_deploy/policy/v1_1/model_decoder.onnx
-twist2_policy=$repo/thirdparty/TWIST2/assets/ckpts/twist2_1017_25k.onnx
-hgpt_policy=$repo/thirdparty/Humanoid-GPT/storage/ckpts/pns_wo_priv264.onnx
-gmt_policy=$repo/thirdparty/humanoid-general-motion-tracking/assets/pretrained_checkpoints/pretrained.pt
+sonic_encoder=$repo/storage/checkpoints/trackers/sonic_v1_1/model_encoder.onnx
+sonic_decoder=$repo/storage/checkpoints/trackers/sonic_v1_1/model_decoder.onnx
+twist2_policy=$repo/storage/checkpoints/trackers/twist2/twist2_1017_25k.onnx
+hgpt_policy=$repo/storage/checkpoints/trackers/hgpt/pns_wo_priv264.onnx
+gmt_policy=$repo/storage/checkpoints/trackers/gmt/pretrained.pt
 
 command -v "$python" >/dev/null
 test -d "$dataset"

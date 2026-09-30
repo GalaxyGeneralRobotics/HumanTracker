@@ -10,13 +10,17 @@ os.environ["ORT_LOG_LEVEL"] = "ERROR"
 # NOTE: We only modify LD_LIBRARY_PATH here instead of using ctypes RTLD_GLOBAL
 # because RTLD_GLOBAL would expose CUDA 12.8 runtime symbols globally, conflicting
 # with torch when the NVIDIA driver only supports CUDA ≤12.2.
-_cudnn_dir = list(__import__("nvidia.cudnn", fromlist=["cudnn"]).__path__)[0] + "/lib"
-_cuda_rt_dir = list(
-    __import__("nvidia.cuda_runtime", fromlist=["cuda_runtime"]).__path__
-)[0] + "/lib"
-os.environ["LD_LIBRARY_PATH"] = (
-    _cuda_rt_dir + ":" + _cudnn_dir + ":" + os.environ.get("LD_LIBRARY_PATH", "")
-)
+# CPU-only hosts (macOS, no NVIDIA wheels) skip this; CUDA eval still preloads below.
+try:
+    _cudnn_dir = list(__import__("nvidia.cudnn", fromlist=["cudnn"]).__path__)[0] + "/lib"
+    _cuda_rt_dir = list(
+        __import__("nvidia.cuda_runtime", fromlist=["cuda_runtime"]).__path__
+    )[0] + "/lib"
+    os.environ["LD_LIBRARY_PATH"] = (
+        _cuda_rt_dir + ":" + _cudnn_dir + ":" + os.environ.get("LD_LIBRARY_PATH", "")
+    )
+except ModuleNotFoundError:
+    pass
 
 import warnings
 import numpy as np
@@ -38,8 +42,9 @@ from humantracker.eval.core.geometry import (
     quat_mul,
     quat_rotate,
     get_sensor_data,
-    render_frame,
 )
+from humantracker.eval.core.gt_render import DualRobotRenderer
+from humantracker.eval.core.ref_noise import RefNoiseModel, build_profile, trajectory_seed
 from humantracker.eval.core.smoothness_metrics import (
     compute_smoothness_metrics,
     compute_contact_consistency_from_height,
@@ -548,20 +553,19 @@ def evaluate_single_trajectory(
     # ── init sim ──
     init_qpos = ref_traj["qpos"][0].copy()
     init_qpos[:2] = 0.0                       # reset xy
+    ref_xy_offset = ref_traj["qpos"][0, :2].copy()
     mj_sim = SonicMjSim(init_qpos=init_qpos, headless=True, xml_path=xml_path)
     state = mj_sim.init_state()
     state = mj_sim.reset(state)
 
     # ── optional video renderer ──
-    renderer = None
-    free_cam = None
+    ghost = None
     video_writer = None
     if record_video:
         if video_path is None:
             raise ValueError("record_video=True requires video_path")
         Path(video_path).parent.mkdir(parents=True, exist_ok=True)
-        renderer = mujoco.Renderer(mj_sim.mj_model, height=video_height, width=video_width)
-        free_cam = mujoco.MjvCamera()
+        ghost = DualRobotRenderer(xml_path, video_width, video_height)
         video_writer = cv2.VideoWriter(
             video_path,
             cv2.VideoWriter_fourcc(*"mp4v"),
@@ -569,11 +573,17 @@ def evaluate_single_trajectory(
             (video_width, video_height),
         )
         if not video_writer.isOpened():
-            renderer.close()
+            ghost.close()
             raise RuntimeError(f"Failed to open video writer: {video_path}")
 
     # ── init obs builder ──
-    obs_builder = SonicObsBuilder(ref_traj, encoder_dim=policy.encoder_input_dim)
+    policy_ref = ref_traj
+    if getattr(policy, "ref_noise", None) is not None:
+        seed = trajectory_seed(file_name, policy.ref_noise_seed)
+        policy_ref = policy.ref_noise.corrupt_traj(
+            ref_traj, mj_sim.mj_model, seed, fields=REF_FIELDS_CONSUMED
+        )
+    obs_builder = SonicObsBuilder(policy_ref, encoder_dim=policy.encoder_input_dim)
     base_quat = state.mj_data.qpos[3:7].copy()
     obs_builder.reset(base_quat)
 
@@ -629,8 +639,10 @@ def evaluate_single_trajectory(
         # ── step sim ──
         state = mj_sim.step(state, motor_target)
 
-        if renderer is not None:
-            frame = render_frame(renderer, state.mj_data, free_cam)
+        if ghost is not None:
+            ref_q = ref_traj["qpos"][step].copy()
+            ref_q[:2] -= ref_xy_offset
+            frame = ghost.render(state.mj_data.qpos, ref_q)
             video_writer.write(cv2.cvtColor(frame, cv2.COLOR_RGB2BGR))
         if render_only:
             continue
@@ -666,9 +678,9 @@ def evaluate_single_trajectory(
             )
         )
 
-    if renderer is not None:
+    if ghost is not None:
         video_writer.release()
-        renderer.close()
+        ghost.close()
     if render_only:
         return {"traj_id": traj_id, "file_name": file_name}
 
@@ -745,13 +757,17 @@ def evaluate_single_trajectory(
 #   See humantracker/eval/backends/__init__.py for what the runner expects.
 # ═══════════════════════════════════════════════════════════════════════════
 
+#: Reference fields this policy reads. It consumes reference *joint velocity*,
+#: so it is exposed to the velocity stage of the noise model.
+REF_FIELDS_CONSUMED = ("qpos", "qvel")
+
 OPTIONS = (
     ("--encoder", {
-        "default": "thirdparty/GR00T-WholeBodyControl/gear_sonic_deploy/policy/v1_1/model_encoder.onnx",
+        "default": "storage/checkpoints/trackers/sonic_v1_1/model_encoder.onnx",
         "help": "GEAR-SONIC encoder ONNX",
     }),
     ("--decoder", {
-        "default": "thirdparty/GR00T-WholeBodyControl/gear_sonic_deploy/policy/v1_1/model_decoder.onnx",
+        "default": "storage/checkpoints/trackers/sonic_v1_1/model_decoder.onnx",
         "help": "GEAR-SONIC decoder ONNX",
     }),
 )
@@ -763,12 +779,23 @@ def validate(args) -> None:
 
 
 def build_context(args, xml_path: str) -> Dict:
+    policy = SonicOnnxPolicy(
+        required_file(args.encoder), required_file(args.decoder), args.device
+    )
+    if args.ref_noise != "none":
+        profile = build_profile(args.ref_noise, args.ref_noise_scale, args.ref_noise_vel)
+        policy.ref_noise = RefNoiseModel(profile)
+        policy.ref_noise_seed = int(args.ref_noise_seed)
+        print(
+            f"[SONIC] ref_noise={profile.name} scale={profile.scale:g} "
+            f"vel={profile.vel_mode} seed={args.ref_noise_seed}"
+        )
+    else:
+        policy.ref_noise = None
     return {
         "args": args,
         "xml_path": xml_path,
-        "policy": SonicOnnxPolicy(
-            required_file(args.encoder), required_file(args.decoder), args.device
-        ),
+        "policy": policy,
         "reward_model": load_reward_model(args.rm_checkpoint, args.rm_device),
         "load_ref_traj": load_ref_traj,
         "simulate": evaluate_single_trajectory,

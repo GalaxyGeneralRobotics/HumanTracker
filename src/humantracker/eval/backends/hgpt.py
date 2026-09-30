@@ -7,35 +7,28 @@ import pickle
 import hashlib
 import numpy as np
 import cv2
-from absl import logging
+import logging
 from pathlib import Path
 from dataclasses import dataclass
 from typing import Dict, List, Optional
 from xml.etree import ElementTree
 
 import mujoco
-from jax import tree_util as jtu
 
 # <repo>/src/humantracker/eval/backends/<this file>
 ROOT = Path(__file__).resolve().parents[4]
-HGPT_ROOT = ROOT / "thirdparty" / "Humanoid-GPT"
-if not HGPT_ROOT.is_dir():
-    raise FileNotFoundError(f"Humanoid-GPT checkout not found: {HGPT_ROOT}")
-# Humanoid-GPT pins numpy/jax/mujoco versions that conflict with the other
-# trackers, so it is vendored rather than installed; its `tracking` and `utils`
-# packages are resolved from the checkout.
-sys.path.insert(0, str(HGPT_ROOT))
-
-# Imported for its side effects: it installs the console handler and raises absl's
-# verbosity to INFO, the level this backend's tables are logged at.
-from utils.logger import LOGGER  # noqa: F401
-from tracking.convert_qpos2kpt import qpos2kpt
-from tracking.policy import Args
-from tracking.infer_utils import G1TrackMjSim, G1TrackInferFn, g1_infer_env_config
-from humantracker.eval.core.geometry import render_frame
+from humantracker.eval.native.hgpt.kinematics import qpos2kpt
+from humantracker.eval.native.hgpt.runtime import G1TrackMjSim, G1TrackInferFn, g1_infer_env_config
+from humantracker.eval.core.gt_render import DualRobotRenderer
+from humantracker.eval.core.ref_noise import RefNoiseModel, build_profile, trajectory_seed
 from humantracker.eval.core.smoothness_metrics import (
     compute_smoothness_metrics,
     compute_contact_consistency_from_height,
+)
+from humantracker.eval.core.feel_metrics import (
+    FEEL_METRIC_KEYS,
+    compute_feel_metrics,
+    resolve_foot_site_ids,
 )
 from humantracker.eval.core.rollout_export import save_tool_rollout_npz
 from humantracker.eval.core.rm_feature_extractor import extract_frame_fields, sequence_features_from_history
@@ -61,23 +54,19 @@ from humantracker.eval.backends import load_ref_traj
 from humantracker.eval.paths import required_file
 
 
-xla_flags = os.environ.get("XLA_FLAGS", "")
-xla_flags += " --xla_gpu_triton_gemm_any=True"
-os.environ["XLA_FLAGS"] = xla_flags
-os.environ["XLA_PYTHON_CLIENT_PREALLOCATE"] = "false"
 if sys.platform.startswith("linux"):
     os.environ["MUJOCO_GL"] = "egl"
 
 
 @dataclass
-class EvalHGPTArgs(Args):
+class EvalHGPTArgs:
     """The subset of upstream's argument object that its rollout code reads.
 
     ``build_context`` fills every field from the evaluation command line, which is
     defined in ``eval_parallel_tracker`` and not restated here.
     """
 
-    load_path: str = "thirdparty/Humanoid-GPT/storage/ckpts/pns_wo_priv264.onnx"
+    load_path: str = "storage/checkpoints/trackers/hgpt/pns_wo_priv264.onnx"
     device: str = "auto"
     privileged: bool = False
     sim_xml_path: str = "storage/assets/unitree_g1_5010/scene_mjx_track_papergray.xml"
@@ -98,12 +87,6 @@ def _convert_traj_to_kpt(data: Dict, mj_model: mujoco.MjModel, freq_tgt: int) ->
         qpos_src=qpos_src,
         freq_src=freq_src,
         freq_tgt=freq_tgt,
-        interp_sec=0.0,
-        end_default_sec=0.0,
-        debug=False,
-        foot_contact_est=False,
-        height_clip_mode=None,
-        video_path=None,
     )
 
 
@@ -232,30 +215,27 @@ def _evaluate_single_traj(
     video_path: Optional[str] = None,
     source_path: Optional[str] = None,
     category: Optional[str] = None,
+    inference_cls=G1TrackInferFn,
+    ref_fields_consumed=None,
 ):
     if policy is None:
         raise ValueError("HGPT evaluation requires an initialized policy")
     local_policy = policy
     _init_qpos = ref_traj["qpos"][0].copy()
     _init_qpos[:2] = 0.0
+    ref_xy_offset = ref_traj["qpos"][0, :2].copy()
     mj_sim = G1TrackMjSim(init_qpos=_init_qpos, headless=True, xml_path=args.sim_xml_path)
-    infer_fn = G1TrackInferFn(env_cfg, mj_sim.mj_model, local_policy, privileged=args.privileged)
+    infer_fn = inference_cls(env_cfg, mj_sim.mj_model, local_policy, privileged=args.privileged)
     state = mj_sim.init_state()
     state = mj_sim.reset(state)
 
     # optional video renderer
-    renderer = None
-    free_cam = None
+    ghost = None
     video_writer = None
     if record_video:
-        renderer = mujoco.Renderer(
-            mj_sim.mj_model,
-            height=args.video_height,
-            width=args.video_width,
-        )
-        free_cam = mujoco.MjvCamera()
         if video_path:
             os.makedirs(os.path.dirname(video_path) or ".", exist_ok=True)
+            ghost = DualRobotRenderer(args.sim_xml_path, args.video_width, args.video_height)
             fourcc = cv2.VideoWriter_fourcc(*"mp4v")
             video_writer = cv2.VideoWriter(
                 str(video_path),
@@ -264,25 +244,42 @@ def _evaluate_single_traj(
                 (args.video_width, args.video_height),
             )
             if not video_writer.isOpened():
-                renderer.close()
+                ghost.close()
                 raise RuntimeError(f"Failed to open video writer: {video_path}")
 
     traj_metrics = {
         "kpt_pos_errors": [], "kpt_rot_errors": [],
         "joint_pos_errors": [], "joint_vel_errors": [],
         "root_pos_errors": [], "root_vel_errors": [], "root_yaw_errors": [],
+        "cmd_kpt_pos_errors": [], "cmd_joint_pos_errors": [],
         "state_history": [],
         "motor_target_history": [],
         "feature_history": [],
     }
 
     traj_len = len(ref_traj["qpos"])
+    policy_ref = ref_traj
+    if getattr(args, "ref_noise", "none") != "none":
+        seed = trajectory_seed(file_name, int(getattr(args, "ref_noise_seed", 0)))
+        model = RefNoiseModel(
+            build_profile(
+                args.ref_noise,
+                float(getattr(args, "ref_noise_scale", 1.0)),
+                getattr(args, "ref_noise_vel", None),
+            )
+        )
+        policy_ref = model.corrupt_traj(
+            ref_traj, mj_sim.mj_model, seed,
+            fields=REF_FIELDS_CONSUMED if ref_fields_consumed is None else ref_fields_consumed,
+        )
     for track_step in range(traj_len):
-        ref_curr = jtu.tree_map(lambda x: x[track_step][None], ref_traj)
+        ref_curr = {k: v[track_step][None] for k, v in ref_traj.items()}
         track_step_next = np.clip(track_step + 1, 0, traj_len - 1)
-        ref_next = jtu.tree_map(lambda x: x[track_step_next][None], ref_traj)
+        ref_next = {k: v[track_step_next][None] for k, v in ref_traj.items()}
+        pol_curr = {k: v[track_step][None] for k, v in policy_ref.items()}
+        pol_next = {k: v[track_step_next][None] for k, v in policy_ref.items()}
 
-        action = infer_fn.infer_onnx(state, {"ref_curr": ref_curr, "ref_next": ref_next})
+        action = infer_fn.infer_onnx(state, {"ref_curr": pol_curr, "ref_next": pol_next})
 
         state = mj_sim.step(state, action)
 
@@ -297,6 +294,10 @@ def _evaluate_single_traj(
         traj_metrics["root_pos_errors"].append(root_pos_err_mm)
         traj_metrics["root_vel_errors"].append(root_vel_err_mms)
         traj_metrics["root_yaw_errors"].append(root_yaw_err)
+        cmd_kpt, _ = calculate_kpt_mae_error(state, pol_curr, pol_next, mj_sim.mj_model)
+        cmd_joint, _ = calculate_joint_tracking_error(state, pol_curr)
+        traj_metrics["cmd_kpt_pos_errors"].append(cmd_kpt)
+        traj_metrics["cmd_joint_pos_errors"].append(cmd_joint)
         traj_metrics["state_history"].append({
             "qpos": state.mj_data.qpos.copy(),
             "qvel": state.mj_data.qvel.copy(),
@@ -316,11 +317,11 @@ def _evaluate_single_traj(
             )
         )
 
-        # render frame for video
-        if renderer is not None:
-            frame = render_frame(renderer, state.mj_data, free_cam)
-            if video_writer is not None:
-                video_writer.write(cv2.cvtColor(frame, cv2.COLOR_RGB2BGR))
+        if ghost is not None:
+            ref_q = np.asarray(ref_traj["qpos"][track_step]).copy()
+            ref_q[:2] -= ref_xy_offset
+            frame = ghost.render(state.mj_data.qpos, ref_q)
+            video_writer.write(cv2.cvtColor(frame, cv2.COLOR_RGB2BGR))
 
     # --- Aggregate (works with partial data from early termination) ---
     steps_completed = len(traj_metrics["kpt_pos_errors"])
@@ -336,11 +337,14 @@ def _evaluate_single_traj(
         avg_root_pos_error = float(np.mean(traj_metrics["root_pos_errors"]))
         avg_root_vel_error = float(np.mean(traj_metrics["root_vel_errors"]))
         avg_root_yaw_error = float(np.mean(traj_metrics["root_yaw_errors"]))
+        avg_cmd_kpt_pos_error = float(np.mean(traj_metrics["cmd_kpt_pos_errors"]))
+        avg_cmd_joint_pos_error = float(np.mean(traj_metrics["cmd_joint_pos_errors"]))
     else:
         traj_length_ratio, termination_step = 0.0, 0
         avg_kpt_pos_error = avg_kpt_rot_error = float("inf")
         avg_joint_pos_error = avg_joint_vel_error = float("inf")
         avg_root_pos_error = avg_root_vel_error = avg_root_yaw_error = float("inf")
+        avg_cmd_kpt_pos_error = avg_cmd_joint_pos_error = float("inf")
 
     result = {
         "traj_id": traj_id,
@@ -355,6 +359,8 @@ def _evaluate_single_traj(
         "root_pos_err_mm": avg_root_pos_error,
         "root_vel_err_mms": avg_root_vel_error,
         "root_yaw_err": avg_root_yaw_error,
+        "cmd_kpt_pos_mae": avg_cmd_kpt_pos_error,
+        "cmd_joint_pos_mae": avg_cmd_joint_pos_error,
         "score": None,
     }
 
@@ -370,6 +376,14 @@ def _evaluate_single_traj(
             traj_metrics["state_history"], ref_traj, mj_sim.mj_model,
         )
         result.update(cc)
+        result.update(
+            compute_feel_metrics(
+                traj_metrics["state_history"],
+                ctrl_dt=env_cfg.ctrl_dt,
+                action_history=traj_metrics["motor_target_history"],
+                foot_site_ids=resolve_foot_site_ids(mj_sim.mj_model),
+            )
+        )
     else:
         result.update({
             "joint_acc_mean": float("inf"),
@@ -379,6 +393,7 @@ def _evaluate_single_traj(
             "action_jerk_mean": float("inf"),
             "foot_contact_acc": float("inf"),
             "foot_contact_iou": float("inf"),
+            **{k: float("inf") for k in FEEL_METRIC_KEYS},
         })
 
     if args.rollout_dir and traj_metrics["state_history"]:
@@ -399,11 +414,10 @@ def _evaluate_single_traj(
         result["rollout_path"] = str(rollout_path)
         result["rollout_meta_path"] = str(rollout_meta_path)
 
-    # Finish the streaming video before releasing the renderer.
     if video_writer is not None:
         video_writer.release()
-    if renderer is not None:
-        renderer.close()
+    if ghost is not None:
+        ghost.close()
 
     if collect_rm_features:
         prompt_features, trajectory_features = sequence_features_from_history(
@@ -430,9 +444,21 @@ def print_overall_summary(metrics: List[Dict]) -> None:
 #   See humantracker/eval/backends/__init__.py for what the runner expects.
 # ═══════════════════════════════════════════════════════════════════════════
 
+#: Reference fields this policy reads. It is the widest consumer of the three
+#: evaluated trackers -- keypoint spatial velocity and the planar velocity
+#: command included -- so it is the most exposed to velocity-side corruption.
+REF_FIELDS_CONSUMED = (
+    "qpos",
+    "qvel",
+    "kpt2gv_pose",
+    "kpt_cvel_in_gv",
+    "gv2wrd_pose",
+    "gv_vel",
+)
+
 OPTIONS = (
     ("--policy", {
-        "default": "thirdparty/Humanoid-GPT/storage/ckpts/pns_wo_priv264.onnx",
+        "default": "storage/checkpoints/trackers/hgpt/pns_wo_priv264.onnx",
         "help": "Humanoid-GPT policy ONNX",
     }),
     ("--robot_xml", {
@@ -464,7 +490,7 @@ OPTIONS = (
 
 
 def validate(args) -> None:
-    if os.environ.get("G1_VERSION") != "5010":
+    if os.environ.get("G1_VERSION", "5010") != "5010":
         raise RuntimeError("Humanoid-GPT evaluation requires G1_VERSION=5010")
     if args.videos_only:
         raise ValueError("This backend collects reward-model features and cannot render only")
@@ -488,6 +514,7 @@ def _validate_scene(scene_value: str, robot_value: str) -> None:
 
 
 def build_context(args, xml_path: str) -> Dict:
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
     upstream = EvalHGPTArgs()
     upstream.load_path = required_file(args.policy)
     upstream.device = args.device
@@ -500,6 +527,15 @@ def build_context(args, xml_path: str) -> Dict:
     upstream.rollout_tracker = args.rollout_tracker or args.tracker
     upstream.rollout_run_id = args.rollout_run_id
     upstream.rollout_group = args.rollout_group
+    upstream.ref_noise = args.ref_noise
+    upstream.ref_noise_seed = int(args.ref_noise_seed)
+    upstream.ref_noise_scale = float(args.ref_noise_scale)
+    upstream.ref_noise_vel = args.ref_noise_vel
+    if args.ref_noise != "none":
+        print(
+            f"[HGPT] ref_noise={args.ref_noise} scale={args.ref_noise_scale:g} "
+            f"vel={args.ref_noise_vel} seed={args.ref_noise_seed}"
+        )
     return {
         "args": args,
         "upstream_args": upstream,
@@ -547,6 +583,8 @@ def evaluate(context: Dict, task) -> Dict:
         video_path=video_path or None,
         source_path=path,
         category=category,
+        inference_cls=context.get("inference_cls", G1TrackInferFn),
+        ref_fields_consumed=context.get("ref_fields_consumed", REF_FIELDS_CONSUMED),
     )
     prompt_features = metric.pop("_prompt_features")
     traj_features = metric.pop("_traj_features")

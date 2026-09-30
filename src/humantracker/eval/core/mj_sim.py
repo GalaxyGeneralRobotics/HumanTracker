@@ -2,8 +2,7 @@
 
 Each backend subclasses :class:`MJSim` to supply its own PD gains, torque limits
 and initial pose, and passes its own control/physics rates in -- those differ per
-policy. The Humanoid-GPT backend drives its upstream ``G1TrackMjSim`` instead, so it
-does not use this one.
+policy. The bundled Humanoid-GPT runtime also subclasses this controller.
 """
 
 from __future__ import annotations
