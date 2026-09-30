@@ -78,7 +78,9 @@ Succ (%) ↑, MPJPE (rad) ↓, HumanScore ↑ on a 0–100 scale, and joint Jerk
 All rows below are full-test-split measurements from this evaluator, using
 `whole_body` termination. GMT, TWIST2, SONIC, SONIC 1.1 and Humanoid-GPT were
 evaluated locally on 2026-09-11–12 to report all four metrics from the same run
-per method. Their earlier paper-reference values are retained separately below.
+per method; their earlier paper-reference values are retained separately below.
+The nine released policies below them were evaluated on 2026-09-28 through the
+sim2real backend.
 
 | | Daily | | | | Highly Dynamic | | | | Interaction | | | | Ground | | | |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -88,16 +90,22 @@ per method. Their earlier paper-reference values are retained separately below.
 | SONIC | 93.7 | 0.102 | 49.5 | 417.1 | 83.6 | 0.118 | 40.7 | 449.8 | 97.4 | 0.127 | 54.7 | 196.1 | 19.5 | 0.231 | 27.0 | 299.1 |
 | SONIC 1.1 | 94.4 | 0.093 | 43.7 | 436.5 | 84.7 | 0.108 | 38.5 | 396.0 | 97.8 | 0.111 | 48.7 | 226.4 | 13.4 | 0.198 | 34.1 | 272.2 |
 | Humanoid-GPT | 94.3 | 0.046 | 54.6 | 398.1 | 87.7 | 0.047 | 48.9 | 339.7 | 97.2 | 0.069 | 56.7 | 124.7 | 32.3 | 0.213 | 25.2 | 2202.7 |
-| ScaleBFM (14-point) | 91.7 | 0.093 | 41.6 | 363.9 | 73.9 | 0.094 | 39.6 | 316.2 | 97.4 | 0.084 | 56.7 | 94.8 | 18.3 | 0.180 | 62.1 | 152.7 |
-| ScaleBFM (5-point) | 90.3 | 0.142 | 23.4 | 372.1 | 70.9 | 0.141 | 34.0 | 310.1 | 97.3 | 0.131 | 47.7 | 95.7 | 17.7 | 0.216 | 56.0 | 151.3 |
-| HoloMotion | 91.1 | 0.085 | 37.0 | 475.3 | 66.4 | 0.098 | 42.9 | 359.5 | 96.3 | 0.093 | 53.4 | 121.2 | 11.0 | 0.178 | 37.7 | 223.7 |
+| ScaleBFM-M | 90.8 | 0.094 | 44.5 | 345.4 | 72.4 | 0.091 | 39.3 | 307.6 | 96.5 | 0.084 | 54.0 | 93.5 | 17.7 | 0.186 | 43.4 | 177.3 |
+| HEFT | 93.2 | 0.056 | 46.1 | 472.5 | 75.7 | 0.061 | 40.5 | 562.0 | 97.5 | 0.063 | 51.6 | 130.9 | 15.9 | 0.176 | 31.7 | 431.9 |
+| ScaleBFM-XL | 90.1 | 0.093 | 44.2 | 392.3 | 74.3 | 0.089 | 37.5 | 297.5 | 96.7 | 0.082 | 51.2 | 101.8 | 17.1 | 0.158 | 40.8 | 187.9 |
+| GRIT v0.0.1 | 90.2 | 0.105 | 40.2 | 429.3 | 65.7 | 0.115 | 41.4 | 438.6 | 96.5 | 0.114 | 48.5 | 125.5 | 11.0 | 0.241 | 24.9 | 369.9 |
+| TeleopIT | 84.0 | 0.096 | 34.0 | 462.8 | 54.9 | 0.110 | 35.8 | 406.5 | 96.2 | 0.105 | 45.7 | 142.0 | 13.4 | 0.229 | 47.1 | 209.0 |
+| MimicLite-PPO | 81.1 | 0.080 | 28.0 | 601.9 | 58.6 | 0.096 | 28.1 | 526.3 | 95.2 | 0.089 | 37.9 | 152.1 | 7.9 | 0.239 | 20.1 | 817.5 |
+| MimicLite-ROA | 83.1 | 0.080 | 24.8 | 723.0 | 59.0 | 0.112 | 26.9 | 927.5 | 95.2 | 0.093 | 35.1 | 205.1 | 2.4 | 0.290 | 26.6 | 2011.4 |
+| HoloMotion | 84.0 | 0.088 | 20.4 | 760.9 | 63.4 | 0.101 | 27.2 | 474.1 | 94.9 | 0.091 | 40.4 | 189.1 | 18.3 | 0.172 | 35.1 | 223.7 |
+| Mimic Lite v1.1 | 80.1 | 0.080 | 25.0 | 1072.9 | 51.5 | 0.114 | 22.8 | 1797.6 | 94.4 | 0.087 | 34.3 | 267.4 | 7.3 | 0.252 | 23.1 | 768.5 |
 
 `Jerk` is `joint_jerk_mean`: the mean absolute third finite difference of
 simulated joint angles, divided by the control timestep cubed. Each trajectory
 is averaged over time and joints; category values are unweighted means over
 valid trajectories with finite jerk, matching the evaluator's summary. This is
 neither RMS jerk nor policy-target `action_jerk_mean`. Values come from the same
-full-run records as each row's other metrics. All eight rows have complete jerk
+full-run records as each row's other metrics. Every row has complete jerk
 records; these values are not spliced into the earlier paper-reference results.
 
 The five new runs each contain 2500 valid trajectories with zero runtime errors
@@ -107,24 +115,17 @@ Interaction 1094, and Ground 164. Policy files are GMT `pretrained.pt`, TWIST2
 `twist2_1017_25k.onnx`, the separate SONIC release/1.1 encoder-decoder pairs,
 and Humanoid-GPT `pns_wo_priv264.onnx`. The local run records, artifact hashes
 and validation report are under `outputs/eval_runs/20260911_jerk_completion/`.
-ScaleBFM and HoloMotion retain their previously measured full-run results.
 
 Every tracker keeps its native observation and action-processing stack, receives the
 same retargeted references, and is measured by the same evaluator under the SONIC
 termination criterion.
 
-ScaleBFM and HoloMotion are not part of the paper's Table 2. Their rows are this
-evaluator's own measurements over the full 2500-clip test split. ScaleBFM uses the
-CPU-reconstructed backend described below; HoloMotion uses the official v1.4.1
-`model_16200.onnx`. Both use `whole_body` termination.
-
-The ScaleBFM 14-point row uses `--control_mode 7`; the five-point row uses
-`--control_mode 4` (pelvis, both ankles and both wrists) with the same
-`model_22200.pt` checkpoint. The five-point full-test evaluation ran locally
-on 2026-09-10–11 using the native CPU backend, no reference noise, and
-`whole_body` termination: all 2500 trajectories produced valid metrics with
-zero runtime errors. Both rows report full-body metrics, not five-point-only
-errors; the original 14-point results are retained, not rerun here.
+The nine released policies are not part of the paper's Table 2. Each runs its
+unmodified deploy YAML and ONNX on sim2real's policy runtime, with ONNX CPU
+inference, CUDA HumanScore and observation seed 0; every run covers all 2500
+trajectories with zero evaluation exceptions. The artifacts, settings and the
+TeleopIT robot-model caveat are in the
+[evaluation guide](src/humantracker/eval/README.md#released-policies-through-sim2real).
 
 #### Paper Table 2 reference
 
@@ -161,12 +162,13 @@ pip install -e ".[annotation]"   # web annotation interface and video export
 Copy `.env.example` to `.env` for experiment-tracking credentials. `.env` is
 gitignored and must never be committed.
 
-### Self-contained tracker runtimes
+### Native tracker runtimes
 
-All seven backends run from this repository in the same environment. No external
-code checkout, Git submodule, symlink, `sys.path` injection, or tracker-specific
-Conda environment is required. Standard Python libraries are installed by
-`pip install -e .`; policy weights and motion datasets remain separate artifacts.
+The five native backends (`sonic`, `twist2`, `gmt`, `hgpt`, `hgpt_sparse`) run from
+this repository in the same environment. No external code checkout, Git submodule,
+symlink, `sys.path` injection, or tracker-specific Conda environment is required.
+Standard Python libraries are installed by `pip install -e .`; policy weights and
+motion datasets remain separate artifacts.
 
 Download public policies directly, without cloning their source repositories
 (the local HGPT sparse checkpoint described below is not in the downloader):
@@ -174,13 +176,11 @@ Download public policies directly, without cloning their source repositories
 ```bash
 python -m humantracker.download_weights --tracker all
 # Or download just one backend:
-python -m humantracker.download_weights --tracker holomotion
+python -m humantracker.download_weights --tracker hgpt
 ```
 
 The downloader checks SHA-256 for every artifact, verifies existing files, and
-refuses to overwrite a mismatched file. The historical `setup_thirdparty.sh`
-command now forwards to this downloader; it does not clone, checkout or patch
-anything. Existing external checkouts are neither used nor modified.
+refuses to overwrite a mismatched file.
 
 | Backend | Default standalone artifacts under `storage/checkpoints/trackers/` |
 | --- | --- |
@@ -189,8 +189,6 @@ anything. Existing external checkouts are neither used nor modified.
 | Humanoid-GPT five-point (`hgpt_sparse`) | `hgpt_sparse/sparse5pt_best_stage2_4B_cumulative9B.onnx` (provide separately) |
 | TWIST2 (`twist2`) | `twist2/twist2_1017_25k.onnx` |
 | GMT (`gmt`) | `gmt/pretrained.pt` |
-| ScaleBFM (`scalebfm`) | `scalebfm/model_22200.pt`, metadata JSON, mode table |
-| HoloMotion (`holomotion`) | `holomotion/model_16200.onnx` (v1.4.1) |
 
 SONIC and SONIC 1.1 share one backend, selected by the encoder input layout.
 To use the original SONIC policy, download `--tracker sonic_release` and pass
@@ -200,19 +198,24 @@ HGPT weight; select it with the evaluator's `--policy` flag. The downloader's
 `--output_dir` can select another artifact directory; evaluator path overrides
 must then point there.
 
-ScaleBFM reconstructs the raw RSL-RL actor in plain PyTorch and requires
-`--device cpu`; it does not use ScaleBridge or a TensorRT engine. The metadata
-and mode table are distributed alongside the upstream TensorRT build, but are
-configuration rather than a compiled graph. `--control_mode 7` (default) tracks
-all 14 bodies; mode 4 is the five-point configuration. Other compatible weights
-can be selected with `--policy`, `--metadata` and `--mode_table`.
+### Released policies through sim2real
 
-HoloMotion preserves the official v1.4.1 604-D Warp observation kernel,
-50 Hz policy / 200 Hz physics contract, and the joint order, PD gains, default
-pose and action scale embedded in ONNX metadata. Its exact artifact SHA-256 is
-`2aabb53bd86b1860dd07b24d02710f4b988f9c201655becb45a2378604599ad7`.
-The benchmark's G1 scene is the 29-DoF `mode_machine=15` configuration.
-HoloMotion weights retain their CC BY-NC-SA 4.0 license.
+HEFT, HoloMotion, MimicLite-PPO/ROA, Mimic Lite v1.1, ScaleBFM-M/XL, GRIT and
+TeleopIT run on [sim2real](https://github.com/EGalahad/sim2real)'s own policy
+runtime, from its pinned and patched checkout and its Python 3.10 environment:
+
+```bash
+./setup_thirdparty.sh                        # native weights + thirdparty/sim2real
+bash src/humantracker/eval/sim2real/setup.sh # sim2real environment, extra assets, checksums
+```
+
+The policies come from the
+[sim2real artifacts folder](https://drive.google.com/drive/folders/1lrPyiiy7anyG3P4wHNIQQQlydboLPd9e)
+on Google Drive (download its `checkpoints/` into `thirdparty/sim2real/`);
+`setup.sh` fetches the HoloMotion ONNX and TeleopIT's robot model from Hugging Face
+(`HF_ENDPOINT=https://hf-mirror.com` works as a mirror) and verifies every file.
+The [evaluation guide](src/humantracker/eval/README.md#released-policies-through-sim2real)
+lists each policy, its upstream project and the exact settings.
 
 ### Humanoid-GPT five-point sparse tracker
 
@@ -255,9 +258,6 @@ The HGPT runtime contains only the evaluation-specific MuJoCo/ONNX path, not
 its upstream training/MJX stack. Source revisions, modifications and license
 notices are recorded in
 [native/SOURCES.md](src/humantracker/eval/native/SOURCES.md).
-**ScaleBFM's extracted network has unresolved redistribution licensing; review
-that notice before publishing this local integration.** Its code is not
-relicensed as Apache-2.0.
 
 ## Evaluating a tracker
 
@@ -280,14 +280,14 @@ python -m humantracker.eval.eval_parallel_tracker \
 HumanScore is read from `storage/checkpoints/reward_model/best.pt`, where the released
 weights unpack; `--rm_checkpoint` selects another one.
 
-`--tracker` accepts `sonic`, `twist2`, `gmt`, `hgpt`, `hgpt_sparse`, `scalebfm` and `holomotion`,
-one backend module each under [backends/](src/humantracker/eval/backends). A backend
-declares the flags only it needs — `--policy` for `twist2`, `gmt`, `hgpt`, `hgpt_sparse`,
-`scalebfm` and `holomotion`,
-`--encoder`/`--decoder` for `sonic`, `--metadata`/`--mode_table`/`--control_mode` for
-`scalebfm` — so `--help` shows the selected tracker's options and no others.
-`scalebfm` additionally requires `--device cpu`: unlike the GPU
-backends, it never runs on CUDA (see the table above).
+`--tracker` accepts the native `sonic`, `twist2`, `gmt`, `hgpt` and `hgpt_sparse`, one
+backend module each under [backends/](src/humantracker/eval/backends), and the nine
+released policies `heft`, `holomotion`, `mimiclite-ppo`, `mimiclite-roa`,
+`mimiclite-v1.1`, `scalebfm-m`, `scalebfm-xl`, `grit-v0.0.1` and `teleopit`, which
+share the sim2real backend and run from sim2real's environment. A backend declares
+the flags only it needs — `--policy` for `twist2`, `gmt`, `hgpt` and `hgpt_sparse`,
+`--encoder`/`--decoder` for `sonic`, `--sim2real_root`/`--motion_view` for the
+sim2real policies — so `--help` shows the selected tracker's options and no others.
 `--termination_metric whole_body` applies SONIC's published termination terms
 uniformly to every tracker, which is what the paper reports; `trunk` uses the same
 thresholds but watches the pelvis and torso only. The flag is required — there is
@@ -303,12 +303,16 @@ CUDA_VISIBLE_DEVICES=1 python -m humantracker.eval.eval_parallel_tracker --track
 CUDA_VISIBLE_DEVICES=2 python -m humantracker.eval.eval_parallel_tracker --tracker gmt    ... &
 ```
 
-[`eval.sh`](src/humantracker/eval/eval.sh) automates the five GPU backends, including
-HoloMotion, on GPUs 0–4. ScaleBFM remains a separate CPU run:
+[`eval.sh`](src/humantracker/eval/eval.sh) automates the four native GPU backends on
+GPUs 0–3, and [`sim2real/eval.sh`](src/humantracker/eval/sim2real/eval.sh) the nine
+released policies, one per GPU. `--shard_count`/`--shard_index` split a single
+tracker's run across processes; `merge_eval_shards` recombines and verifies them
+(see the [evaluation guide](src/humantracker/eval/README.md#sharding-a-run)):
 
 ```bash
 export HUMANTRACKER_DATASET=/path/to/HumanTracker
 bash src/humantracker/eval/eval.sh
+bash src/humantracker/eval/sim2real/eval.sh
 ```
 
 ### Metrics
@@ -464,13 +468,15 @@ src/humantracker/
   eval/              tracker evaluation harness
     backends/        per-tracker simulation loops (internal modules)
     core/            shared metrics, HumanScore features, rollout export
-    native/          bundled HGPT, HoloMotion and ScaleBFM runtime components
+    native/          bundled Humanoid-GPT runtime components
+    sim2real/        setup, launcher and checksums for the released sim2real policies
   reward_model/      HumanScore model, datasets and training
   data/              motion-disjoint train/test splitting
 tool/
   rm_pipeline/       preference-pair construction
   motion_annotation/ rendering and human annotation
-thirdparty/patches/  historical upstream patches (not used at runtime)
+thirdparty/          sim2real checkout (cloned by setup_thirdparty.sh), plus our
+                     patches/ against it
 storage/             datasets, checkpoints and generated artifacts (not tracked)
 ```
 
@@ -482,8 +488,12 @@ naming the variable rather than guessing a default.
 
 | Variable | Used by | Meaning |
 | --- | --- | --- |
-| `HUMANTRACKER_DATASET` | `eval.sh` | motion dataset root |
-| `HUMANTRACKER_RM_CHECKPOINT` | `eval.sh` | HumanScore checkpoint (default: `storage/checkpoints/reward_model/best.pt`) |
+| `HUMANTRACKER_DATASET` | `eval.sh`, `sim2real/eval.sh` | motion dataset root |
+| `HUMANTRACKER_RM_CHECKPOINT` | `eval.sh`, `sim2real/eval.sh` | HumanScore checkpoint (default: `storage/checkpoints/reward_model/best.pt`) |
+| `SIM2REAL_ROOT` | `sim2real/eval.sh` | sim2real checkout (default: `thirdparty/sim2real`) |
+| `SIM2REAL_MOTION_VIEW` | `sim2real/eval.sh` | any4hdmi view of the test motions (default: `$HUMANTRACKER_DATASET/.humantracker_eval_view`) |
+| `GPUS`, `WORKERS` | `sim2real/eval.sh` | GPUs to cycle through and workers per tracker |
+| `HF_ENDPOINT` | `sim2real/setup.sh`, `prepare_motion_view` | Hugging Face endpoint or mirror for the sim2real assets |
 | `G1_VERSION` | `hgpt` and `hgpt_sparse` backends | defaults to `5010`; other revisions are rejected |
 | `HUMANTRACKER_ROLLOUT_RUN_ID` | rollout export | run id used in exported filenames (or `--rollout_run_id`) |
 | `DATA_DIR` | `train.sh` | `preference_pair/` directory of the dataset release |
@@ -514,8 +524,9 @@ precedence, which is how a machine with a different driver is accommodated.
 
 HumanTracker-authored code is released under the [Apache License 2.0](LICENSE).
 Bundled runtime components and policy weights retain their upstream notices and
-license status; see [SOURCES.md](src/humantracker/eval/native/SOURCES.md),
-including the unresolved ScaleBFM redistribution notice. The G1
+license status; see [SOURCES.md](src/humantracker/eval/native/SOURCES.md). sim2real
+and the released policies evaluated through it are not redistributed here and remain
+under their own licenses. The G1
 description in [storage/assets/unitree_g1_5010/](storage/assets/unitree_g1_5010) is
 redistributed under Unitree Robotics' BSD 3-Clause license, included alongside it.
 
@@ -525,5 +536,12 @@ We build on [GMR](https://arxiv.org/abs/2510.02252) for retargeting, and evaluat
 [GMT](https://github.com/zixuan417/humanoid-general-motion-tracking),
 [TWIST2](https://github.com/amazon-far/TWIST2),
 [SONIC](https://arxiv.org/abs/2511.07820) and
-[Humanoid-GPT](https://github.com/GalaxyGeneralRobotics/Humanoid-GPT). We thank the
-performers and annotators whose work makes this benchmark possible.
+[Humanoid-GPT](https://github.com/GalaxyGeneralRobotics/Humanoid-GPT), together with
+the released [HEFT](https://heft.axell.top/),
+[HoloMotion](https://github.com/HorizonRobotics/HoloMotion),
+[MimicLite](https://github.com/Roboparty/MimicLite),
+[ScaleBFM](https://github.com/zengweishuai/ScaleBFM),
+[GRIT](https://github.com/mrzuang/GRIT_teleop_deploy) and
+[TeleopIT](https://github.com/BotRunner64/Teleopit) policies, run through
+[sim2real](https://github.com/EGalahad/sim2real). We thank the performers and
+annotators whose work makes this benchmark possible.

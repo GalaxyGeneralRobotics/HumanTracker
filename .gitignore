@@ -44,9 +44,9 @@ storage/checkpoints/reward_model/*
 !egl_conf/*.json
 
 # --- Third-party upstreams ---------------------------------------------------
-# setup_thirdparty.sh clones each of the four trackers at its pinned commit and
-# applies our patches from thirdparty/patches/. The checkouts are local build
-# products, never tracked.
+# setup_thirdparty.sh clones sim2real at its pinned commit and applies our patches
+# from thirdparty/patches/. The checkout is a local build artifact; only the
+# patches are tracked.
 !setup_thirdparty.sh
 !thirdparty/
 thirdparty/*
