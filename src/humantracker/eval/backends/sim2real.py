@@ -173,6 +173,18 @@ def _apply_command(context: Dict, data: mujoco.MjData, command) -> None:
         mujoco.mj_step(model, data)
 
 
+def _check_stepped(data: mujoco.MjData, expected_time: float, step: int) -> None:
+    """Fail the trajectory if the last control period diverged.
+
+    On divergence MuJoCo warns and resets the state -- clock included -- instead of
+    raising, so an unchecked rollout would silently restart from the initial pose and
+    be scored as if it were still tracking.
+    """
+    if (not np.isfinite(data.qpos).all() or not np.isfinite(data.qvel).all()
+            or not np.isclose(data.time, expected_time, rtol=0, atol=1e-8)):
+        raise FloatingPointError(f"Nonfinite state or MuJoCo auto-reset at step {step}")
+
+
 def _ref_frames(ref: Dict, step: int) -> Tuple[Dict, Dict]:
     """The reference at ``step`` and at the following frame, each with a batch axis."""
     length = len(ref["qpos"])
@@ -226,7 +238,9 @@ def evaluate(context: Dict, task: Tuple[int, str, str, str]) -> Dict:
         # observations only refresh when it changes.
         policy.total_inference_cnt += 1
         motor_target = np.asarray(command[0])
+        expected_time = data.time + CTRL_DT
         _apply_command(context, data, command)
+        _check_stepped(data, expected_time, step)
 
         # ── metrics ──
         if "kpt2gv_pose" in ref:
@@ -273,6 +287,14 @@ def evaluate(context: Dict, task: Tuple[int, str, str, str]) -> Dict:
     result.update(compute_smoothness_metrics(
         state_history, ctrl_dt=CTRL_DT, action_history=motor_target_history,
     ))
+    # Jerk over the executed part only: after termination a fallen robot's jerk is
+    # not tracking quality. Needs four frames for a third difference.
+    prefix_frames = int(np.clip(term_step, 0, len(state_history)))
+    result["jerk_prefix_frames"] = prefix_frames
+    result["joint_jerk_until_termination"] = (
+        compute_smoothness_metrics(state_history[:prefix_frames], ctrl_dt=CTRL_DT)["joint_jerk_mean"]
+        if prefix_frames >= 4 else None
+    )
     result.update(compute_contact_consistency_from_height(state_history, ref, model))
     score_prompt_feats, score_traj_feats = sequence_features_from_history(feature_history, fps=FPS)
     result.update(score_reward_model(context["reward_model"], score_prompt_feats, score_traj_feats))

@@ -74,7 +74,12 @@ the adapter replaces none of them. It only provides the HumanTracker G1 scene, 5
 control with a 0.005 s physics step, sim2real's G1 torque limits, the reference
 motion, the HumanTracker termination rule and HumanScore. Like upstream's loop it
 advances the runtime's inference counter every step, which ScaleBFM's buffered
-observations need to refresh. It does not render videos or inject reference noise.
+observations need to refresh. A control period that leaves a non-finite state, or in
+which MuJoCo auto-resets a diverged simulation, fails the trajectory rather than
+letting it be scored from the reset pose. Besides the common metrics each trajectory
+records `joint_jerk_until_termination`, the joint jerk over its first
+`jerk_prefix_frames` (executed) frames. It does not render videos or inject
+reference noise.
 
 ### Setup
 
@@ -190,4 +195,5 @@ tracker. Test manifest SHA-256
 checkpoint `storage/checkpoints/reward_model/best.pt`, SHA-256
 `f1bec3c1a6f8596bda0b5aa2891a8c8e3b90d7f24c1f3eb7068ac760393adca0`. The seven
 non-ScaleBFM trackers ran before the inference-counter correction, which only
-ScaleBFM's observations read; both ScaleBFM models were rerun with it.
+ScaleBFM's observations read; both ScaleBFM models were rerun with it. All nine ran
+before the divergence check and the pre-termination jerk were added.
