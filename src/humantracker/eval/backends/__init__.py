@@ -16,7 +16,8 @@ modules registered below and calls the protocol
     print_category_summary(category, metrics)
     print_overall_summary(metrics)
 
-Adding a tracker is a new module here plus one line in :data:`BACKEND_MODULES`.
+Adding a tracker is a new module here plus one line in :data:`BACKEND_MODULES`. A
+policy that sim2real already packages needs only a line in :data:`SIM2REAL_POLICIES`.
 
 Backends whose simulation entry takes the common signature share :func:`load_ref_traj`
 and :func:`evaluate_uniform` rather than restating them. ``hgpt`` wraps upstream code
@@ -31,20 +32,27 @@ from typing import Dict, Tuple
 
 import numpy as np
 
+# Released G1 policies run through sim2real's own policy runtime: ``--tracker`` name ->
+# policy directory under ``<sim2real>/checkpoints/``. One backend serves all of them.
+SIM2REAL_POLICIES = {
+    "heft": "heft/pmg",
+    "holomotion": "holomotion/v1_4_0",
+    "mimiclite-ppo": "mimic-lite/ppo",
+    "mimiclite-roa": "mimic-lite/roa",
+    "mimiclite-v1.1": "mimic-lite/v1_1",
+    "scalebfm-m": "scalebfm/humanoid_transformer_m",
+    "scalebfm-xl": "scalebfm/humanoid_transformer_xl",
+    "grit-v0.0.1": "grit/v0_0_1",
+    "teleopit": "teleopit",
+}
+
 BACKEND_MODULES = {
     "gmt": "humantracker.eval.backends.gmt",
     "hgpt": "humantracker.eval.backends.hgpt",
     "hgpt_sparse": "humantracker.eval.backends.hgpt_sparse",
     "sonic": "humantracker.eval.backends.sonic",
     "twist2": "humantracker.eval.backends.twist2",
-    **{
-        name: "humantracker.eval.backends.sim2real"
-        for name in (
-            "heft", "holomotion", "mimiclite-ppo", "mimiclite-roa",
-            "mimiclite-v1.1", "scalebfm-m", "scalebfm-xl",
-            "grit-v0.0.1", "teleopit",
-        )
-    },
+    **{name: "humantracker.eval.backends.sim2real" for name in SIM2REAL_POLICIES},
 }
 
 BACKEND_NAMES: Tuple[str, ...] = tuple(BACKEND_MODULES)
@@ -65,7 +73,8 @@ def load_backend(name: str):
     """Import the backend registered under ``name``, checking it implements the protocol.
 
     Only the selected backend is imported to avoid loading unused inference libraries.
-    All backend source code is included in HumanTracker and shares one environment.
+    Every backend imports in the HumanTracker environment; the sim2real backend
+    additionally needs sim2real's own environment to run, and says so in ``validate``.
     """
     module = importlib.import_module(BACKEND_MODULES[name])
     missing = [attr for attr in PROTOCOL if not hasattr(module, attr)]

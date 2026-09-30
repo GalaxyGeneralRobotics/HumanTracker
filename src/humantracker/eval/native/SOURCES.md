@@ -43,9 +43,12 @@ conventions without parity tests. Policy weights retain their separate licenses.
 ## Existing backends and assets
 
 SONIC, TWIST2 and GMT already implement their observation/inference/simulation
-paths inside `backends/`. They now use standalone policy files under
-`storage/checkpoints/trackers/`, as does the extracted Humanoid-GPT runtime. No runtime
-requires `thirdparty/`, Git, a symlink to another repository, or an upstream
-Python package. G1 assets remain under `storage/assets/unitree_g1_5010/` with
-their existing license. The historical `thirdparty/patches/` files are kept for
-provenance only and are not applied during installation or evaluation.
+paths inside `backends/`. They use standalone policy files under
+`storage/checkpoints/trackers/`, as does the extracted Humanoid-GPT runtime; none of
+them requires `thirdparty/`, Git, a symlink to another repository, or an upstream
+Python package. G1 assets remain under `storage/assets/unitree_g1_5010/` with their
+existing license.
+
+The released policies behind the `sim2real` backend are the exception by design:
+they run on the pinned, patched sim2real checkout and its own environment rather
+than on bundled code. See `thirdparty/patches/README.md`.

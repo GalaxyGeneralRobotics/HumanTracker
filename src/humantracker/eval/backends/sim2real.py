@@ -1,18 +1,32 @@
-"""Evaluate released sim2real G1 policies with HumanTracker's metrics.
+"""sim2real backend: released G1 policies run through sim2real's own policy runtime.
 
-The upstream policy runtime owns observations, action scaling, joint order and PD
-gains. This adapter only supplies the HumanTracker scene, motion and scoring.
+Every tracker in :data:`~humantracker.eval.backends.SIM2REAL_POLICIES` ships as a
+deploy ``policy.yaml`` + ONNX pair for `sim2real <https://github.com/EGalahad/sim2real>`_.
+The upstream ``IntegratedPolicyRuntime`` owns everything policy-specific: observations,
+joint order, action scale and PD gains all come from the YAML and are not restated
+here. This module supplies only what every HumanTracker backend shares -- the
+paper-gray scene, the reference motion, the metrics and HumanScore -- and steps MuJoCo
+the way upstream's integrated sim2sim loop does, with sim2real's G1 torque limits.
+
+sim2real requires Python 3.10 and runs from its own environment, so its packages are
+imported inside the functions that need them: the module still imports, and
+``--help`` still works, from the HumanTracker environment. sim2real reads reference
+motions through an any4hdmi dataset, so ``--motion_view`` points at a manifest over
+the test motions; see :mod:`humantracker.eval.sim2real.prepare_motion_view`.
 """
 
 from __future__ import annotations
 
+import importlib.util
+import re
 from pathlib import Path
+from typing import Dict, Iterator, Tuple
 
 import mujoco
 import numpy as np
 import yaml
 
-from humantracker.eval.backends import load_ref_traj
+from humantracker.eval.backends import SIM2REAL_POLICIES, load_ref_traj
 from humantracker.eval.core.mj_sim import State
 from humantracker.eval.core.rm_feature_extractor import (
     extract_frame_fields,
@@ -24,6 +38,7 @@ from humantracker.eval.core.smoothness_metrics import (
     compute_contact_consistency_from_height,
     compute_smoothness_metrics,
 )
+# Four of the eight protocol names in backends/__init__.py, re-exported unchanged.
 from humantracker.eval.core.summary import (
     compute_category_summary,
     compute_overall_summary,
@@ -36,105 +51,82 @@ from humantracker.eval.core.tracking_errors import (
     calculate_kpt_mae_error,
     calculate_root_tracking_error,
 )
-from humantracker.eval.paths import required_dir, required_file
+from humantracker.eval.paths import repo_path, required_dir, required_file
+
+CTRL_DT = 0.02  # 50 Hz, the control rate of every released policy
+FPS = int(round(1.0 / CTRL_DT))
+
+# YAML keys that name a robot model the runtime loads from disk. TeleopIT's points
+# outside its checkpoint directory, at a file sim2real does not ship (see sim2real/setup.sh).
+_MODEL_PATH_KEYS = {"xml_path", "mjcf_path"}
+_URI = re.compile(r"^[A-Za-z][A-Za-z0-9+.-]*://")
 
 
-# Names match the public leaderboard; the four existing HumanTracker backends stay separate.
-POLICIES = {
-    "heft": "heft/pmg",
-    "holomotion": "holomotion/v1_4_0",
-    "mimiclite-ppo": "mimic-lite/ppo",
-    "mimiclite-roa": "mimic-lite/roa",
-    "mimiclite-v1.1": "mimic-lite/v1_1",
-    "scalebfm-m": "scalebfm/humanoid_transformer_m",
-    "scalebfm-xl": "scalebfm/humanoid_transformer_xl",
-    "grit-v0.0.1": "grit/v0_0_1",
-    "teleopit": "teleopit",
-}
+# ═══════════════════════════════════════════════════════════════════════════
+#   POLICY FILES
+# ═══════════════════════════════════════════════════════════════════════════
 
-OPTIONS = (
-    ("--sim2real_root", {"required": True, "help": "sim2real checkout with released checkpoints/"}),
-    ("--motion_view", {"required": True, "help": "any4hdmi manifest and hard-linked test motions"}),
-    ("--sim_dt", {"type": float, "default": 0.005, "help": "upstream integrated sim2sim physics step"}),
-    ("--inference_backend", {"default": "onnx-cpu", "choices": ["onnx-cpu", "onnx-gpu"]}),
-    ("--seed", {"type": int, "default": None, "help": "per-trajectory observation RNG seed"}),
-)
+def _policy_yaml(args) -> Path:
+    return required_dir(args.sim2real_root) / "checkpoints" / SIM2REAL_POLICIES[args.tracker] / "policy.yaml"
 
 
-def _policy_file(args) -> Path:
-    return Path(args.sim2real_root) / "checkpoints" / POLICIES[args.tracker] / "policy.yaml"
+def _local_model_paths(node, base: Path) -> Iterator[Path]:
+    """Yield every on-disk robot model the policy YAML refers to, resolved against it."""
+    if isinstance(node, dict):
+        for key, value in node.items():
+            if key in _MODEL_PATH_KEYS and isinstance(value, str) and not _URI.match(value):
+                yield base / value
+            else:
+                yield from _local_model_paths(value, base)
+    elif isinstance(node, list):
+        for value in node:
+            yield from _local_model_paths(value, base)
 
 
 def _view_file(args, file_path: Path) -> Path:
-    relative = file_path.relative_to(Path(args.mocap_path).resolve())
-    return Path(args.motion_view) / "motions" / relative
+    """The motion view's hard link to ``file_path``, at the same dataset-relative path."""
+    return Path(args.motion_view) / "motions" / file_path.relative_to(repo_path(args.mocap_path))
 
 
-def validate(args) -> None:
-    required_dir(args.sim2real_root)
-    policy_file = required_file(_policy_file(args))
-    with open(policy_file) as stream:
-        policy_config = yaml.safe_load(stream)
-    model_file = Path(policy_file).parent / policy_config.get("model_path", "policy.onnx")
-    required_file(model_file)
-    required_file(Path(args.motion_view) / "manifest.json")
-    if args.tracker == "teleopit":
-        required_file(Path(args.sim2real_root) / "legacy/data/robots/g1/g1-mjlab.xml")
-    if args.sim_dt <= 0 or not np.isclose(0.02 / args.sim_dt, round(0.02 / args.sim_dt)):
-        raise ValueError("--sim_dt must divide the 0.02 s control period")
-    if args.video_interval:
-        raise ValueError("sim2real backend does not render videos")
+# ═══════════════════════════════════════════════════════════════════════════
+#   UPSTREAM RUNTIME
+# ═══════════════════════════════════════════════════════════════════════════
 
+def _runtime_for_motion(context: Dict, motion_path: Path):
+    """Return the worker's ``IntegratedPolicyRuntime``, reset to the start of ``motion_path``.
 
-def build_context(args, xml_path: str) -> dict:
-    from sim2real.config.robots import get_robot_cfg
-
-    robot_cfg = get_robot_cfg("g1")
-    model = mujoco.MjModel.from_xml_path(xml_path)
-    model.opt.timestep = args.sim_dt
-    joint_names = [model.joint(i).name for i in range(1, model.njnt)]
-    if joint_names != list(robot_cfg.joint_names):
-        raise ValueError("HumanTracker scene joint order differs from sim2real G1 config")
-    if model.nu != len(joint_names):
-        raise ValueError("HumanTracker scene must have one actuator per G1 joint")
-    actuator_names = [model.actuator(i).name for i in range(model.nu)]
-    if actuator_names != joint_names:
-        raise ValueError("HumanTracker scene actuator order differs from G1 joints")
-    effort_limit = np.asarray([robot_cfg.joint_effort_limit[n] for n in joint_names])
-    return {
-        "args": args,
-        "model": model,
-        "robot_cfg": robot_cfg,
-        "effort_limit": effort_limit,
-        "policy": None,
-        "reward_model": load_reward_model(args.rm_checkpoint, args.rm_device),
-    }
-
-
-def _set_motion(context: dict, motion_path: Path):
+    The runtime cannot be built without a motion, and building it creates the ONNX
+    session (1.6 GB for HoloMotion), so a worker builds it on its first trajectory and
+    afterwards swaps the motion in place. The swap mutates the existing state processor
+    rather than replacing it, because every observation term holds a reference to it.
+    """
     from sim2real.rl_policy.utils.motion import MotionDataset, motion_dataset_first_motion
     from sim2real.sim_env.integrated_sim2sim import IntegratedPolicyRuntime, IntegratedSim2SimArgs
 
-    args = context["args"]
     required_file(motion_path)
     policy = context["policy"]
     if policy is None:
-        runtime_args = IntegratedSim2SimArgs(
-            policy_config=str(_policy_file(args)),
-            motion_path=str(motion_path),
-            robot="g1",
-            env_dt=0.02,
-            sim_dt=args.sim_dt,
-            initial_pause_s=0.0,
-            inference_backend=args.inference_backend,
-            headless=True,
+        args = context["args"]
+        policy = IntegratedPolicyRuntime(
+            args=IntegratedSim2SimArgs(
+                policy_config=str(_policy_yaml(args)),
+                motion_path=str(motion_path),
+                robot="g1",
+                env_dt=CTRL_DT,
+                sim_dt=args.sim_dt,
+                initial_pause_s=0.0,
+                inference_backend=args.inference_backend,
+                headless=True,
+            ),
+            robot_cfg=context["robot_cfg"],
         )
-        policy = IntegratedPolicyRuntime(args=runtime_args, robot_cfg=context["robot_cfg"])
         context["policy"] = policy
     else:
+        # Mirrors the motion half of upstream's IntegratedMotionState.__init__.
         state = policy.state_processor
         motion = motion_dataset_first_motion(MotionDataset.create_from_path(
-            str(motion_path), robot_cfg=context["robot_cfg"],
+            str(motion_path),
+            robot_cfg=context["robot_cfg"],
             mjcf_path=state.motion_config.get("mjcf_path"),
         ))
         state.motion_dataset = motion
@@ -143,18 +135,22 @@ def _set_motion(context: dict, motion_path: Path):
         state.motion_body_names = list(motion.body_names)
         state.motion_config["motion_path"] = str(motion_path)
 
-    state = policy.state_processor
     policy.total_inference_cnt = 0
     policy.state_dict = {
         "action": np.zeros(policy.num_actions, dtype=np.float32),
         "paused": False,
         "control_mode": "policy",
     }
-    state.reset()
+    policy.state_processor.reset()
     return policy
 
 
 def _sync_state(policy, data: mujoco.MjData) -> None:
+    """Copy the simulated robot into the runtime's state processor.
+
+    The scene's joint order equals sim2real's G1 order (checked in ``build_context``),
+    so this is the index-free form of upstream's ``sync_policy_state``.
+    """
     state = policy.state_processor
     state.root_pos_w[:] = data.qpos[:3]
     state.root_quat_w[:] = data.qpos[3:7]
@@ -166,32 +162,42 @@ def _sync_state(policy, data: mujoco.MjData) -> None:
     state.low_state_tick = int(data.time * 1000)
 
 
-def _step(context: dict, data: mujoco.MjData, command) -> None:
+def _apply_command(context: Dict, data: mujoco.MjData, command) -> None:
+    """Hold one policy command for a control period: PD plus feedforward, clipped."""
     target, target_vel, feedforward, kp, kd = command
+    model = context["model"]
     limit = context["effort_limit"]
-    for _ in range(round(0.02 / context["args"].sim_dt)):
+    for _ in range(round(CTRL_DT / context["args"].sim_dt)):
         torque = feedforward + kp * (target - data.qpos[7:]) + kd * (target_vel - data.qvel[6:])
         data.ctrl[:] = np.clip(torque, -limit, limit)
-        mujoco.mj_step(context["model"], data)
+        mujoco.mj_step(model, data)
 
 
-def _frames(ref: dict, step: int):
+def _ref_frames(ref: Dict, step: int) -> Tuple[Dict, Dict]:
+    """The reference at ``step`` and at the following frame, each with a batch axis."""
     length = len(ref["qpos"])
-    def frame(index):
+
+    def frame(index: int) -> Dict:
         return {key: value[index][None] for key, value in ref.items()
                 if isinstance(value, np.ndarray) and len(value) == length}
+
     return frame(step), frame(min(step + 1, length - 1))
 
 
-def evaluate(context: dict, task: tuple) -> dict:
+# ═══════════════════════════════════════════════════════════════════════════
+#   SINGLE TRAJECTORY EVALUATION
+# ═══════════════════════════════════════════════════════════════════════════
+
+def evaluate(context: Dict, task: Tuple[int, str, str, str]) -> Dict:
     traj_id, path, category, _video_path = task
     args = context["args"]
+    model = context["model"]
     file_path = Path(path)
     ref = load_ref_traj(file_path)
     if args.seed is not None:
         np.random.seed(args.seed + traj_id)
-    policy = _set_motion(context, _view_file(args, file_path))
-    model = context["model"]
+
+    policy = _runtime_for_motion(context, _view_file(args, file_path))
     data = mujoco.MjData(model)
     data.qpos[:] = ref["qpos"][0]
     data.qvel[:] = 0.0
@@ -201,71 +207,164 @@ def evaluate(context: dict, task: tuple) -> dict:
     policy.state_dict["paused"] = False
     state = State(mj_data=data)
 
-    kpt_pos, kpt_rot, joint_pos, joint_vel = [], [], [], []
-    root_pos, root_vel, root_yaw = [], [], []
-    history, targets, features = [], [], []
-    length = len(ref["qpos"])
-    for step in range(length):
-        ref_curr, ref_next = _frames(ref, step)
+    # ── metric accumulators ──
+    kpt_pos_errs, kpt_rot_errs = [], []
+    joint_pos_errs, joint_vel_errs = [], []
+    root_pos_errs, root_vel_errs, root_yaw_errs = [], [], []
+    state_history, motor_target_history, feature_history = [], [], []
+
+    traj_len = len(ref["qpos"])
+    for step in range(traj_len):
+        ref_curr, ref_next = _ref_frames(ref, step)
+
+        # ── infer & step sim ──
         _sync_state(policy, data)
         command = policy.step()
-        # Upstream advances this counter so buffered observations refresh each step.
-        policy.total_inference_cnt += 1
         if command is None:
             raise RuntimeError(f"Policy inference failed at frame {step}")
-        target = np.asarray(command[0])
-        _step(context, data, command)
+        # Upstream's loop advances this after every step; ScaleBFM's buffered
+        # observations only refresh when it changes.
+        policy.total_inference_cnt += 1
+        motor_target = np.asarray(command[0])
+        _apply_command(context, data, command)
+
+        # ── metrics ──
         if "kpt2gv_pose" in ref:
-            pos, rot = calculate_kpt_mae_error(state, ref_curr, ref_next, model)
-            kpt_pos.append(pos)
-            kpt_rot.append(rot)
-        pos, vel = calculate_joint_tracking_error(state, ref_curr)
-        joint_pos.append(pos)
-        joint_vel.append(vel)
-        pos, vel, yaw = calculate_root_tracking_error(state, ref_curr)
-        root_pos.append(pos)
-        root_vel.append(vel)
-        root_yaw.append(yaw)
-        history.append({name: getattr(data, name).copy() for name in
-                        ("qpos", "qvel", "xpos", "xmat", "site_xpos")})
-        targets.append(target.copy())
-        features.append(extract_frame_fields(
-            model, data, ref_curr, ref_next, policy.state_dict["action"], target
+            kpe, kre = calculate_kpt_mae_error(state, ref_curr, ref_next, model)
+            kpt_pos_errs.append(kpe)
+            kpt_rot_errs.append(kre)
+
+        jpe, jve = calculate_joint_tracking_error(state, ref_curr)
+        joint_pos_errs.append(jpe)
+        joint_vel_errs.append(jve)
+
+        rpe, rve, rye = calculate_root_tracking_error(state, ref_curr)
+        root_pos_errs.append(rpe)
+        root_vel_errs.append(rve)
+        root_yaw_errs.append(rye)
+
+        state_history.append({
+            name: getattr(data, name).copy()
+            for name in ("qpos", "qvel", "xpos", "xmat", "site_xpos")
+        })
+        motor_target_history.append(motor_target.copy())
+        feature_history.append(extract_frame_fields(
+            model, data, ref_curr, ref_next, policy.state_dict["action"], motor_target
         ))
 
-    ratio, term_step = calculate_trajectory_length(history, ref, model, args.termination_metric)
+    # ── aggregate ──
+    traj_len_ratio, term_step = calculate_trajectory_length(
+        state_history, ref, model, args.termination_metric
+    )
     result = {
         "traj_id": traj_id,
         "file_name": file_path.name,
-        "length_ratio": ratio,
+        "length_ratio": traj_len_ratio,
         "termination_step": term_step,
-        "total_frames": length,
-        "joint_pos_mae": float(np.mean(joint_pos)),
-        "joint_vel_mae": float(np.mean(joint_vel)),
-        "root_pos_err_mm": float(np.mean(root_pos)),
-        "root_vel_err_mms": float(np.mean(root_vel)),
-        "root_yaw_err": float(np.mean(root_yaw)),
-        "kpt_pos_mae": float(np.mean(kpt_pos)) if kpt_pos else float("inf"),
-        "kpt_rot_mae": float(np.mean(kpt_rot)) if kpt_rot else float("inf"),
+        "total_frames": traj_len,
+        "joint_pos_mae": float(np.mean(joint_pos_errs)),
+        "joint_vel_mae": float(np.mean(joint_vel_errs)),
+        "root_pos_err_mm": float(np.mean(root_pos_errs)),
+        "root_vel_err_mms": float(np.mean(root_vel_errs)),
+        "root_yaw_err": float(np.mean(root_yaw_errs)),
+        "kpt_pos_mae": float(np.mean(kpt_pos_errs)) if kpt_pos_errs else float("inf"),
+        "kpt_rot_mae": float(np.mean(kpt_rot_errs)) if kpt_rot_errs else float("inf"),
     }
-    result.update(compute_smoothness_metrics(history, ctrl_dt=0.02, action_history=targets))
-    result.update(compute_contact_consistency_from_height(history, ref, model))
-    prompt, trajectory = sequence_features_from_history(features, fps=50)
-    result.update(score_reward_model(context["reward_model"], prompt, trajectory))
+    result.update(compute_smoothness_metrics(
+        state_history, ctrl_dt=CTRL_DT, action_history=motor_target_history,
+    ))
+    result.update(compute_contact_consistency_from_height(state_history, ref, model))
+    score_prompt_feats, score_traj_feats = sequence_features_from_history(feature_history, fps=FPS)
+    result.update(score_reward_model(context["reward_model"], score_prompt_feats, score_traj_feats))
+
     if args.rollout_dir:
-        rollout, meta = save_tool_rollout_npz(
+        rollout_path, rollout_meta_path = save_tool_rollout_npz(
             output_root=args.rollout_dir,
             tracker_name=args.rollout_tracker or args.tracker,
             source_path=path,
             ref_traj=ref,
-            state_history=history,
-            feature_history=features,
+            state_history=state_history,
+            feature_history=feature_history,
             metrics=result,
             category=category,
-            fps=50,
+            fps=FPS,
             ref_start_index=0,
             run_id=args.rollout_run_id or None,
             group=args.rollout_group,
         )
-        result.update(rollout_path=str(rollout), rollout_meta_path=str(meta))
+        result["rollout_path"] = str(rollout_path)
+        result["rollout_meta_path"] = str(rollout_meta_path)
     return result
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+#   EVALUATION BACKEND PROTOCOL
+#   See humantracker/eval/backends/__init__.py for what the runner expects.
+# ═══════════════════════════════════════════════════════════════════════════
+
+OPTIONS = (
+    ("--sim2real_root", {
+        "required": True,
+        "help": "patched sim2real checkout holding the released checkpoints/ "
+                "(setup_thirdparty.sh clones it under thirdparty/)",
+    }),
+    ("--motion_view", {
+        "required": True,
+        "help": "any4hdmi view of the test motions (humantracker.eval.sim2real.prepare_motion_view)",
+    }),
+    ("--sim_dt", {
+        "type": float,
+        "default": 0.005,
+        "help": "physics step; must divide the 0.02 s control period",
+    }),
+    ("--inference_backend", {"default": "onnx-cpu", "choices": ["onnx-cpu", "onnx-gpu"]}),
+    ("--seed", {
+        "type": int,
+        "default": None,
+        "help": "seed numpy with seed + traj_id before each trajectory",
+    }),
+)
+
+
+def validate(args) -> None:
+    if importlib.util.find_spec("sim2real") is None:
+        raise ModuleNotFoundError(
+            "The sim2real backend runs from sim2real's own environment: use "
+            "<sim2real_root>/.venv/bin/python with PYTHONPATH=<HumanTracker>/src "
+            "(see src/humantracker/eval/README.md)"
+        )
+    policy_yaml = Path(required_file(_policy_yaml(args)))
+    with policy_yaml.open() as stream:
+        policy_config = yaml.safe_load(stream)
+    required_file(policy_yaml.parent / policy_config.get("model_path", "policy.onnx"))
+    for model_path in _local_model_paths(policy_config, policy_yaml.parent):
+        required_file(model_path)
+    required_file(Path(args.motion_view) / "manifest.json")
+    if args.sim_dt <= 0 or not np.isclose(CTRL_DT / args.sim_dt, round(CTRL_DT / args.sim_dt)):
+        raise ValueError("--sim_dt must divide the 0.02 s control period")
+    if args.video_interval:
+        raise ValueError("The sim2real backend does not render videos")
+    if args.ref_noise != "none":
+        raise ValueError("The sim2real backend does not inject reference noise")
+
+
+def build_context(args, xml_path: str) -> Dict:
+    from sim2real.config.robots import get_robot_cfg
+
+    robot_cfg = get_robot_cfg("g1")
+    model = mujoco.MjModel.from_xml_path(xml_path)
+    model.opt.timestep = args.sim_dt
+    joint_names = [model.joint(i).name for i in range(1, model.njnt)]
+    if joint_names != list(robot_cfg.joint_names):
+        raise ValueError("HumanTracker scene joint order differs from sim2real's G1 config")
+    actuator_names = [model.actuator(i).name for i in range(model.nu)]
+    if actuator_names != joint_names:
+        raise ValueError("HumanTracker scene must actuate each G1 joint once, in joint order")
+    return {
+        "args": args,
+        "model": model,
+        "robot_cfg": robot_cfg,
+        "effort_limit": np.asarray([robot_cfg.joint_effort_limit[n] for n in joint_names]),
+        "policy": None,  # built on the worker's first trajectory, see _runtime_for_motion
+        "reward_model": load_reward_model(args.rm_checkpoint, args.rm_device),
+    }

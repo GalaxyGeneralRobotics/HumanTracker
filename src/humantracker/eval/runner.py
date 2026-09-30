@@ -222,10 +222,35 @@ def ref_noise_record(args: argparse.Namespace, backend) -> Dict:
     return record
 
 
-def save_json(args: argparse.Namespace, backend, all_metrics: List[Dict]) -> Path | None:
-    if not args.output_json:
-        return None
+def select_shard(tasks: List[Tuple], shard_index: int, shard_count: int) -> List[Tuple]:
+    """Keep every ``shard_count``-th task, starting at ``shard_index``.
 
+    Shards are cut by trajectory id, so the ``shard_count`` runs of one command
+    partition its task list exactly; ``merge_eval_shards`` checks that they do.
+    """
+    if shard_count < 1 or not 0 <= shard_index < shard_count:
+        raise ValueError(f"--shard_index must be in [0, {shard_count}), got {shard_index}")
+    shard = [task for task in tasks if task[0] % shard_count == shard_index]
+    if not shard:
+        raise ValueError(f"Shard {shard_index}/{shard_count} has no trajectories")
+    return shard
+
+
+def result_header(args: argparse.Namespace, backend) -> Dict:
+    """The run settings every results file states before its metrics."""
+    return {
+        "termination_metric": args.termination_metric,
+        "ref_noise": ref_noise_record(args, backend),
+    }
+
+
+def save_json(
+    output_json: str,
+    header: Dict,
+    backend,
+    all_metrics: List[Dict],
+    timestamp: bool = False,
+) -> Path:
     cats_found = sorted({m["category"] for m in all_metrics})
     category_summaries = [
         backend.compute_category_summary(cat, [m for m in all_metrics if m["category"] == cat])
@@ -233,14 +258,13 @@ def save_json(args: argparse.Namespace, backend, all_metrics: List[Dict]) -> Pat
     ]
     overall_summary = backend.compute_overall_summary(all_metrics)
 
-    out_path = repo_path(args.output_json)
-    if args.timestamp_output:
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        out_path = out_path.with_name(f"{out_path.stem}_{timestamp}{out_path.suffix}")
+    out_path = repo_path(output_json)
+    if timestamp:
+        stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        out_path = out_path.with_name(f"{out_path.stem}_{stamp}{out_path.suffix}")
     out_path.parent.mkdir(parents=True, exist_ok=True)
     output_data = {
-        "termination_metric": args.termination_metric,
-        "ref_noise": ref_noise_record(args, backend),
+        **header,
         "overall_summary": json_safe(overall_summary),
         "category_summaries": json_safe(category_summaries),
         "per_trajectory": json_safe(all_metrics),

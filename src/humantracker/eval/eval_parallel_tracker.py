@@ -28,7 +28,9 @@ from humantracker.eval.runner import (
     load_traj_files,
     make_tasks,
     print_summaries,
+    result_header,
     save_json,
+    select_shard,
 )
 
 
@@ -63,8 +65,10 @@ def build_parser(
     parser.add_argument("--workers", type=int, default=8)
     parser.add_argument("--multiprocessing_start_method", default="spawn")
     parser.add_argument("--max_trajs", type=int, default=0)
-    parser.add_argument("--shard_count", type=int, default=1)
-    parser.add_argument("--shard_index", type=int, default=0)
+    parser.add_argument("--shard_count", type=int, default=1,
+                        help="split the run into this many shards by trajectory id")
+    parser.add_argument("--shard_index", type=int, default=0,
+                        help="shard evaluated by this process; combine with merge_eval_shards")
     parser.add_argument("--categories", nargs="*", default=[])
     parser.add_argument("--skip_flipped", action="store_true")
     parser.add_argument("--output_json", default="")
@@ -155,8 +159,6 @@ def main() -> None:
         raise ValueError(f"--workers must be positive, got {args.workers}")
     if args.max_trajs < 0:
         raise ValueError(f"--max_trajs must be non-negative, got {args.max_trajs}")
-    if args.shard_count < 1 or not 0 <= args.shard_index < args.shard_count:
-        raise ValueError("--shard_index must be in [0, --shard_count)")
     if args.video_interval < 0:
         raise ValueError(f"--video_interval must be non-negative, got {args.video_interval}")
     if args.video_width < 1 or args.video_height < 1:
@@ -174,9 +176,7 @@ def main() -> None:
 
     data_path, test_json, traj_files, traj_categories = load_traj_files(args)
     tasks = make_tasks(args, traj_files, traj_categories)
-    tasks = [task for task in tasks if task[0] % args.shard_count == args.shard_index]
-    if not tasks:
-        raise ValueError("Selected shard has no trajectories")
+    tasks = select_shard(tasks, args.shard_index, args.shard_count)
     if args.videos_only:
         tasks = [task for task in tasks if task[3]]
 
@@ -216,8 +216,11 @@ def main() -> None:
         print(f"[Eval] Rendered {len(all_metrics)} videos")
         return
     print_summaries(backend, all_metrics)
-    out_path = save_json(args, backend, all_metrics)
-    if out_path:
+    if args.output_json:
+        out_path = save_json(
+            args.output_json, result_header(args, backend), backend, all_metrics,
+            timestamp=args.timestamp_output,
+        )
         print(f"[Eval] Results saved to {out_path}")
 
 
